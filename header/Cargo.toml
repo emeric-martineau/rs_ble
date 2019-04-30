@@ -1,0 +1,9 @@
+[package]
+name = "RsBluetoothHciSocket-C-Header"
+version = "0.1.0"
+authors = ["emeric"]
+edition = "2018"
+
+[build-dependencies]
+bindgen = "0.49.0"
+glob = "^0.2"

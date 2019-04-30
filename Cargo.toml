@@ -1,0 +1,22 @@
+[package]
+name = "rs_ble"
+version = "0.0.1"
+authors = ["Emeric MARTINEAU"]
+license = "MIT"
+repository = "https://github.com/bubulemaster/rs_ble"
+homepage = "https://github.com/bubulemaster/rs_ble"
+
+description = """
+A Rust Bluetooth Low Energy (BLE) central module
+library, port from Noble Javascript module.
+"""
+
+readme = "README.md"
+keywords = ["hci_socket.bluetooth", "BLE", "IOT", "Hci"]
+categories = ["network-programming", "hardware-support"]
+
+[dependencies]
+libc = "0.2.53"
+nix = "0.8.0"
+failure = "0.1.1"
+failure_derive = "0.1.1"
