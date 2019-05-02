@@ -4,10 +4,28 @@
 pub mod bluetooth;
 pub mod error;
 
-use libc::{AF_BLUETOOTH, SOCK_CLOEXEC, SOCK_RAW, socket, ioctl, bind};
+use std::collections::HashMap;
+use std::cell::RefCell;
+use libc::{AF_BLUETOOTH, SOCK_CLOEXEC, SOCK_RAW, PF_BLUETOOTH, SOCK_SEQPACKET,  socket, ioctl, bind, connect};
 use self::error::{Result, handle_error, Error};
-use self::bluetooth::{BTPROTO_HCI};
+use self::bluetooth::{BTPROTO_HCI, BTPROTO_L2CAP};
 use self::bluetooth::hci::{sockaddr_hci, hci_dev_list_req, hci_dev_info, HCI_CHANNEL_USER, HCI_GET_DEV_LIST_MAGIC, HCI_UP, HCI_CHANNEL_RAW, HCI_GET_DEV_MAGIC};
+use self::bluetooth::l2cap::sockaddr_l2;
+
+/// In Noble, buffer is 1024 but maybe shortest
+const POLL_BUFFER_SIZE: usize = 2048;
+type PollBuffer = [u8; POLL_BUFFER_SIZE];
+
+/// Device information type
+const DEVICE_INFORMATION_WEIRD_TYPE:  u8 = 3;
+const DEVICE_INFORMATION_PUBLIC_TYPE: u8 = 1;
+
+/// From C preprocessor
+pub const LITTLE_ENDIAN: u32 = 1234;
+pub const BIG_ENDIAN: u32 = 4321;
+pub const BYTE_ORDER: u32 = 1234;
+/// ???
+pub const ATT_CID: u16 = 4;
 
 pub struct BluetoothHciSocket {
     /// HCI mode
@@ -19,7 +37,9 @@ pub struct BluetoothHciSocket {
     /// Device MAC address
     address: [u8; 6usize],
     /// Device address type
-    address_type: u8
+    address_type: u8,
+    /// Map of handler and socket
+    l2sockets: RefCell<HashMap<u16, i32>>
 }
 
 impl BluetoothHciSocket {
@@ -36,7 +56,7 @@ impl BluetoothHciSocket {
             return Err(e);
         }
 
-        let mut addr = sockaddr_hci {
+        let addr = sockaddr_hci {
             hci_family: AF_BLUETOOTH as u16,
             hci_dev: hci_dev.unwrap(),
             hci_channel: HCI_CHANNEL_USER
@@ -52,7 +72,8 @@ impl BluetoothHciSocket {
             socket,
             dev_id:  Some(addr.hci_dev),
             address: [0, 0, 0, 0, 0, 0],
-            address_type: 0
+            address_type: 0,
+            l2sockets: RefCell::new(HashMap::new())
         })
     }
 
@@ -69,7 +90,7 @@ impl BluetoothHciSocket {
             return Err(e);
         }
 
-        let mut addr = sockaddr_hci {
+        let addr = sockaddr_hci {
             hci_family: AF_BLUETOOTH as u16,
             hci_dev: hci_dev.unwrap(),
             hci_channel: HCI_CHANNEL_RAW
@@ -90,9 +111,9 @@ impl BluetoothHciSocket {
             return Err(e);
         }
 
-        let address_type = if device_information.type_ == 3 {
+        let address_type = if device_information.type_ == DEVICE_INFORMATION_WEIRD_TYPE {
             // 3 is a weird type, use 1 (public) instead
-            1
+            DEVICE_INFORMATION_PUBLIC_TYPE
         } else {
             device_information.type_
         };
@@ -102,8 +123,91 @@ impl BluetoothHciSocket {
             socket,
             dev_id:  Some(addr.hci_dev),
             address: device_information.bdaddr.b,
-            address_type
+            address_type,
+            l2sockets: RefCell::new(HashMap::new())
         })
+    }
+
+    /// Pool data.
+    /// Blocking call.
+    pub fn poll(&self) {
+        let mut data : PollBuffer = [0u8; POLL_BUFFER_SIZE];
+
+        let length = handle_error(unsafe {
+            libc::read(self.socket, data.as_mut_ptr() as *mut _ as *mut libc::c_void, data.len()) as i32
+        }).unwrap_or(0) as usize;
+
+        if length > 0 {
+            if self.mode == HCI_CHANNEL_RAW {
+                if let Err(e) = self.kernel_disconnect_work_arounds(length, &data) {
+                    println!("error in kernel_disconnect_work_arounds(): {:?}", e);
+                }
+            }
+
+            let result: Vec<u8> = data[0..length].iter().cloned().collect();
+            // TODO callback
+        }
+
+    }
+
+    /// Disconnect socket if need, by looking data.
+    fn kernel_disconnect_work_arounds(&self, length: usize, data: &PollBuffer) -> Result<()>{
+        // HCI Event - LE Meta Event - LE Connection Complete => manually create L2CAP socket to force kernel to book keep
+        // HCI Event - Disconn Complete =======================> close socket from above
+        if length == 22 && data[0] == 0x04 && data[1] == 0x3e && data[2] == 0x13
+            && data[3] == 0x01 && data[4] == 0x00 {
+
+            let l2cid: u16;
+            let handle: u16 = data[5] as u16;
+
+            if BYTE_ORDER == LITTLE_ENDIAN {
+                l2cid = ATT_CID;
+            } else {
+                // l2cid = bswap_16(ATT_CID);
+                l2cid = u16::from_be(ATT_CID);
+            }
+
+            let l2socket = handle_error(unsafe {
+                socket(PF_BLUETOOTH, SOCK_SEQPACKET, BTPROTO_L2CAP)
+            })?;
+
+            let l2a = sockaddr_l2::new(AF_BLUETOOTH, l2cid, self.address_type, self.address.clone());
+
+            handle_error(unsafe {
+                bind(l2socket, &l2a as *const sockaddr_l2 as *const libc::sockaddr,
+                     std::mem::size_of::<sockaddr_l2>() as u32)
+            })?;
+
+            let addr_type = data[8].clone() + 1;
+            let mut address = [0u8; 6usize];
+            let address_len = address.len();
+            address.clone_from_slice(&data[9..(9 + address_len)]);
+
+
+            let l2a = sockaddr_l2::new(AF_BLUETOOTH, l2cid, addr_type, address);
+
+            handle_error(unsafe {
+                connect(l2socket, &l2a as *const sockaddr_l2 as *const libc::sockaddr,
+                     std::mem::size_of::<sockaddr_l2>() as u32)
+            })?;
+
+            let mut sockets_map = self.l2sockets.borrow_mut();
+            sockets_map.insert(handle, l2socket);
+        } else {
+            let handle:u16 = ((data[4] as u16) << 8)  + (data[5] as u16);
+
+            let mut sockets_map = self.l2sockets.borrow_mut();
+
+            if sockets_map.contains_key(&handle) {
+                handle_error(unsafe {
+                    libc::close(sockets_map.get(&handle).unwrap().to_owned())
+                }).unwrap_or(0) as usize;
+
+                sockets_map.remove(&handle);
+            }
+        }
+
+        Ok(())
     }
 
     /// Search device by id.
