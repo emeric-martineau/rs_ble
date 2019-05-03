@@ -6,10 +6,17 @@ pub mod error;
 
 use std::collections::HashMap;
 use std::cell::RefCell;
-use libc::{AF_BLUETOOTH, SOCK_CLOEXEC, SOCK_RAW, PF_BLUETOOTH, SOCK_SEQPACKET,  socket, ioctl, bind, connect};
+use bytes::BytesMut;
+use libc::{
+    AF_BLUETOOTH, SOCK_CLOEXEC, SOCK_RAW, PF_BLUETOOTH, SOCK_SEQPACKET, F_SETFL, O_NONBLOCK,
+    socket, ioctl, bind, connect, fcntl, setsockopt, write
+};
 use self::error::{Result, handle_error, Error};
-use self::bluetooth::{BTPROTO_HCI, BTPROTO_L2CAP};
-use self::bluetooth::hci::{sockaddr_hci, hci_dev_list_req, hci_dev_info, HCI_CHANNEL_USER, HCI_GET_DEV_LIST_MAGIC, HCI_UP, HCI_CHANNEL_RAW, HCI_GET_DEV_MAGIC};
+use self::bluetooth::{BTPROTO_HCI, BTPROTO_L2CAP, SOL_HCI};
+use self::bluetooth::hci::{
+    sockaddr_hci, hci_dev_list_req, hci_dev_info, HCI_CHANNEL_USER, HCI_GET_DEV_LIST_MAGIC, HCI_UP,
+    HCI_CHANNEL_RAW, HCI_GET_DEV_INFO_MAGIC, HCI_CHANNEL_CONTROL, HCI_DEV_NONE, HCI_FILTER
+};
 use self::bluetooth::l2cap::sockaddr_l2;
 
 /// In Noble, buffer is 1024 but maybe shortest
@@ -33,7 +40,7 @@ pub struct BluetoothHciSocket {
     /// Socket network
     socket: i32,
     /// Device Id. It never use ?!?
-    dev_id: Option<u16>,
+    dev_id: u16,
     /// Device MAC address
     address: [u8; 6usize],
     /// Device address type
@@ -49,6 +56,11 @@ impl BluetoothHciSocket {
         let socket = handle_error(unsafe {
             socket(AF_BLUETOOTH, SOCK_RAW | SOCK_CLOEXEC, BTPROTO_HCI)
         })?;
+
+        // If no data avaible, fcntl return EAGAIN error. We don't care about that.
+        // unsafe {
+        //     fcntl(socket, F_SETFL, O_NONBLOCK)
+        // };
 
         let hci_dev = BluetoothHciSocket::dev_id_for(dev_id, false, socket);
 
@@ -70,7 +82,7 @@ impl BluetoothHciSocket {
         Ok(BluetoothHciSocket {
             mode: HCI_CHANNEL_USER,
             socket,
-            dev_id:  Some(addr.hci_dev),
+            dev_id:  addr.hci_dev,
             address: [0, 0, 0, 0, 0, 0],
             address_type: 0,
             l2sockets: RefCell::new(HashMap::new())
@@ -83,6 +95,11 @@ impl BluetoothHciSocket {
         let socket = handle_error(unsafe {
             socket(AF_BLUETOOTH, SOCK_RAW | SOCK_CLOEXEC, BTPROTO_HCI)
         })?;
+
+        // If no data avaible, fcntl return EAGAIN error. We don't care about that.
+        // unsafe {
+        //     fcntl(socket, F_SETFL, O_NONBLOCK)
+        // };
 
         let hci_dev = BluetoothHciSocket::dev_id_for(dev_id, true, socket);
 
@@ -104,7 +121,7 @@ impl BluetoothHciSocket {
         let mut device_information = hci_dev_info::new(dev_id);
 
         let ioctl_res = handle_error(unsafe {
-            ioctl(socket, HCI_GET_DEV_MAGIC as u64, &mut device_information)
+            ioctl(socket, HCI_GET_DEV_INFO_MAGIC as u64, &mut device_information)
         });
 
         if let Err(e) = ioctl_res {
@@ -121,11 +138,70 @@ impl BluetoothHciSocket {
         Ok(BluetoothHciSocket {
             mode: HCI_CHANNEL_RAW,
             socket,
-            dev_id:  Some(addr.hci_dev),
+            dev_id:  addr.hci_dev,
             address: device_information.bdaddr.b,
             address_type,
             l2sockets: RefCell::new(HashMap::new())
         })
+    }
+
+    /*
+    No usage found in Noble
+    pub fn bind_control(&self) -> Result<()> {
+        let addr = sockaddr_hci {
+            hci_family: AF_BLUETOOTH as u16,
+            hci_dev: HCI_DEV_NONE,
+            hci_channel: HCI_CHANNEL_CONTROL
+        };
+
+        self.mode = HCI_CHANNEL_CONTROL;
+
+        handle_error(unsafe {
+            bind(socket, &addr as *const sockaddr_hci as *const libc::sockaddr,
+                 std::mem::size_of::<sockaddr_hci>() as u32)
+        })?;
+
+        Ok(())
+    }*/
+
+    /// Check if device is up.
+    pub fn is_dev_up(&self) -> Result<bool> {
+        let mut device_information = hci_dev_info::new(Some(self.dev_id.clone()));
+
+        let ioctl_res = handle_error(unsafe {
+            ioctl(self.socket, HCI_GET_DEV_INFO_MAGIC as u64, &mut device_information)
+        })?;
+
+        let result = if ioctl_res > -1 {
+            (device_information.flags & (1 << HCI_UP)) > 0
+        } else {
+            false
+        };
+
+        Ok(result)
+    }
+
+    /// Set filter on BT socket.
+    pub fn set_filter(&self, filter: &BytesMut) -> Result<()> {
+        let mut filter = filter.clone();
+
+        handle_error(unsafe {
+            setsockopt(self.socket, SOL_HCI, HCI_FILTER,
+                             filter.as_mut_ptr() as *mut _ as *mut libc::c_void,
+                             filter.len() as u32)
+        })?;
+        Ok(())
+    }
+
+    /// Write BT socket.
+    pub fn write(&self, data: &BytesMut) -> Result<()> {
+        let mut data = data.clone();
+
+        handle_error(unsafe {
+            write(self.socket, data.as_mut_ptr() as *mut _ as *mut libc::c_void,
+                             data.len()) as i32
+        })?;
+        Ok(())
     }
 
     /// Pool data.
@@ -178,7 +254,9 @@ impl BluetoothHciSocket {
                      std::mem::size_of::<sockaddr_l2>() as u32)
             })?;
 
+            // BDADDR_LE_PUBLIC (0x01), BDADDR_LE_RANDOM (0x02)
             let addr_type = data[8].clone() + 1;
+
             let mut address = [0u8; 6usize];
             let address_len = address.len();
             address.clone_from_slice(&data[9..(9 + address_len)]);

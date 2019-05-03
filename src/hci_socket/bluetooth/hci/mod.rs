@@ -17,13 +17,22 @@ pub const HCI_CHANNEL_RAW: u16 = 0;
 /// #define HCI_CHANNEL_USER   1
 pub const HCI_CHANNEL_USER: u16 = 1;
 
+/// #define HCI_CHANNEL_CONTROL        3
+pub const HCI_CHANNEL_CONTROL: u16 = 3;
+
+/// #define HCI_DEV_NONE       0xffff
+pub const HCI_DEV_NONE: u16 = 0xffff;
+
+/// #define HCI_FILTER 2
+pub const HCI_FILTER: i32 = 2;
+
 /// #define HCIGETDEVLIST _IOR('H', 210, int)
 pub const HCI_GET_DEV_LIST_MAGIC: usize = (2u32 << 0i32 + 8i32 + 8i32 + 14i32 |
     (b'H' as (i32) << 0i32 + 8i32) as (u32) | (210i32 << 0i32) as (u32)) as
     (usize) | 4 /* (sizeof(i32)) */ << 0i32 + 8i32 + 8i32;
 
 /// #define HCIGETDEVINFO	_IOR('H', 211, int)
-pub const HCI_GET_DEV_MAGIC: usize = (2u32 << 0i32 + 8i32 + 8i32 + 14i32 |
+pub const HCI_GET_DEV_INFO_MAGIC: usize = (2u32 << 0i32 + 8i32 + 8i32 + 14i32 |
     (b'H' as (i32) << 0i32 + 8i32) as (u32) | (211i32 << 0i32) as (u32)) as (usize) |
     4 /* (sizeof(i32)) */ << 0i32 + 8i32 + 8i32;
 

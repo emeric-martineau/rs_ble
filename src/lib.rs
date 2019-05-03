@@ -4,6 +4,7 @@ extern crate failure_derive;
 
 extern crate nix;
 extern crate libc;
+extern crate bytes;
 
 pub mod hci_socket;
 

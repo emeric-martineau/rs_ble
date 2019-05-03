@@ -12,3 +12,5 @@ pub mod l2cap;
 pub const BTPROTO_HCI: i32 = 1;
 /// #define BTPROTO_L2CAP        0
 pub const BTPROTO_L2CAP: i32 = 0;
+/// #define SOL_HCI 0
+pub const SOL_HCI: i32 = 0;
