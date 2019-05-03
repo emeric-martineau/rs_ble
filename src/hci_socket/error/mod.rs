@@ -46,7 +46,7 @@ pub fn errno_to_error(errno: Errno) -> Error {
 /// Wrap unsafe call anc convert int return to rs_ble Result type.
 pub fn handle_error(v: i32) -> Result<i32> {
     if v < 0 {
-        println!("{:?}", Errno::last());
+        //println!("{:?}", Errno::last());
         Err(errno_to_error(Errno::last()))
     } else {
         Ok(v)
