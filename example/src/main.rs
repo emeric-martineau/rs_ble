@@ -1,6 +1,6 @@
 extern crate rs_ble;
 
-use rs_ble::hci_socket::{BluetoothHciSocket, BtHciSocketCallback};
+use rs_ble::hci_socket::hci::{BluetoothHciSocket, BtHciSocketCallback};
 use std::{thread, time};
 
 

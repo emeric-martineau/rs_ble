@@ -8,7 +8,7 @@
 //! From header file `include/bluetooth/l2cap.h`
 
 use libc::sa_family_t;
-use hci_socket::bluetooth::hci::{bdaddr_t};
+use hci_socket::hci::bluetooth::hci::bdaddr_t;
 
 /// Linux structure for bluetooth device address
 #[repr(C)]
