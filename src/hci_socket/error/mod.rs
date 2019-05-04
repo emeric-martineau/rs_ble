@@ -27,6 +27,9 @@ pub enum Error {
 
     #[fail(display = "{}", _0)]
     Other(String),
+
+    #[fail(display = "Try again")]
+    TryAgain,
 }
 
 /// Return type of API rs_ble;
@@ -39,6 +42,7 @@ pub fn errno_to_error(errno: Errno) -> Error {
         Errno::EPERM => Error::PermissionDenied,
         Errno::ENODEV => Error::DeviceNotFound,
         Errno::ENOTCONN => Error::NotConnected,
+        Errno::EAGAIN => Error::TryAgain,
         _ => Error::Other(errno.to_string())
     }
 }
@@ -46,7 +50,6 @@ pub fn errno_to_error(errno: Errno) -> Error {
 /// Wrap unsafe call anc convert int return to rs_ble Result type.
 pub fn handle_error(v: i32) -> Result<i32> {
     if v < 0 {
-        //println!("{:?}", Errno::last());
         Err(errno_to_error(Errno::last()))
     } else {
         Ok(v)
