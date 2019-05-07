@@ -5,7 +5,6 @@ pub mod bluetooth;
 pub mod error;
 
 use std::collections::HashMap;
-use std::{thread, time};
 use std::clone::Clone;
 
 use bytes::BytesMut;
@@ -64,9 +63,7 @@ pub struct BluetoothHciSocket {
     /// Device address type
     address_type: u8,
     /// Map of handler and socket
-    l2sockets: HashMap<u16, i32>,
-    /// Send stop to pool
-    stop_pool: bool
+    l2sockets: HashMap<u16, i32>
 }
 
 impl BluetoothHciSocket {
@@ -94,14 +91,18 @@ impl BluetoothHciSocket {
                        std::mem::size_of::<sockaddr_hci>() as u32)
         })?;
 
+        // If no data avaible, fcntl return EAGAIN error. We don't care about that.
+        unsafe {
+            fcntl(socket, F_SETFL, O_NONBLOCK)
+        };
+
         Ok(BluetoothHciSocket {
             mode: HCI_CHANNEL_USER,
             socket,
             dev_id:  addr.hci_dev,
             address: [0, 0, 0, 0, 0, 0],
             address_type: 0,
-            l2sockets: HashMap::new(),
-            stop_pool: false
+            l2sockets: HashMap::new()
         })
     }
 
@@ -129,6 +130,11 @@ impl BluetoothHciSocket {
                        std::mem::size_of::<sockaddr_hci>() as u32)
         })?;
 
+        // If no data avaible, fcntl return EAGAIN error. We don't care about that.
+        unsafe {
+            fcntl(socket, F_SETFL, O_NONBLOCK)
+        };
+
         let mut device_information = hci_dev_info::new(dev_id);
 
         let ioctl_res = handle_error(unsafe {
@@ -152,8 +158,7 @@ impl BluetoothHciSocket {
             dev_id:  addr.hci_dev,
             address: device_information.bdaddr.b,
             address_type,
-            l2sockets: HashMap::new(),
-            stop_pool: false
+            l2sockets: HashMap::new()
         })
     }
 
@@ -216,47 +221,14 @@ impl BluetoothHciSocket {
         Ok(())
     }
 
-    /// Start looking.
-    /// `bt_hci_socket_callback` is callback function when receive data or error happend.
-    pub fn start(&mut self, callback: BtHciSocketCallback)  {
-        // TODO can specify time
-        let wait_time = time::Duration::from_millis(200);
-
-        self.stop_pool = false;
-
-        // If no data avaible, fcntl return EAGAIN error. We don't care about that.
-        unsafe {
-             fcntl(self.socket, F_SETFL, O_NONBLOCK)
-        };
-
-        loop {
-            match self.poll() {
-                Ok(data) => {
-                    if data.len() > 0 {
-                        println!("send data");
-                        callback(self, BluetoothHciSocketMessage::Data { data: data.clone() })
-                    }
-                },
-                Err(e) => callback(self, BluetoothHciSocketMessage::Error { error: e })
-            }
-
-            thread::sleep(wait_time);
-
-            if self.stop_pool {
-                println!("Goodbye");
-                break;
-            }
-        }
-    }
-
-    /// Stop polling.
-    pub fn stop(&mut self) {
-        self.stop_pool = true;
+    /// Return current device id
+    pub fn device_id(&self) -> u16 {
+        self.dev_id.clone()
     }
 
     /// Pool data.
     /// Blocking call.
-    fn poll(&mut self) -> Result<BytesMut> {
+    pub fn poll(&mut self) -> Result<BytesMut> {
         let mut data : PollBuffer = [0u8; POLL_BUFFER_SIZE];
 
         let result = handle_error(unsafe {
