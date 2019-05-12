@@ -6,26 +6,17 @@ pub mod hci;
 use std::{thread, time};
 
 use self::hci::{BluetoothHciSocket, BluetoothHciSocketMessage};
-use self::hci::error::Result;
+use self::hci::error::{Result, Error};
 use bytes::{BytesMut, BufMut};
 
 /// Internal state of Hci
+#[derive(Debug)]
 enum HciState {
     Created,
-    Initialized,
+    CreatedHciChannelUser,
+    RunningPollDevUp,
     Running,
     Stopping
-}
-
-enum HciSubState {
-    None,
-    //IsDevUpSocketFilter,
-    IsDevUpEventMask,
-    IsDevUpLeEventMask,
-    IsDevUpReadLocalVersion,
-    IsDevUpWriteLeHostSupported,
-    IsDevUpReadLeHostSupported,
-    IsDevUpReadBdAddr
 }
 
 const HCI_COMMAND_PKT: u8 = 0x01;
@@ -54,6 +45,9 @@ const WRITE_LE_HOST_SUPPORTED_CMD: u16 = OCF_WRITE_LE_HOST_SUPPORTED | OGF_HOST_
 const READ_LE_HOST_SUPPORTED_CMD: u16 = OCF_READ_LE_HOST_SUPPORTED | OGF_HOST_CTL << 10;
 const READ_BD_ADDR_CMD: u16 = OCF_READ_BD_ADDR | (OGF_INFO_PARAM << 10);
 
+
+
+
 /*
 var Hci = function() {
   this._socket = new BluetoothHciSocket();
@@ -70,7 +64,6 @@ var Hci = function() {
 /// Hci structure.
 pub struct Hci {
     socket: BluetoothHciSocket,
-    is_hci_channel_user: bool,
     /*
     is_dev_up: bool,
     state: str,
@@ -81,7 +74,6 @@ pub struct Hci {
     /// Send stop to pool
     stop_pool: bool,
     state: HciState,
-    sub_state: HciSubState
 }
 
 impl Hci {
@@ -98,11 +90,9 @@ impl Hci {
 
             hci = Hci {
                 socket,
-                is_hci_channel_user,
                 is_dev_up: false,
                 stop_pool: false,
-                state: HciState::Created,
-                sub_state: HciSubState::None
+                state: HciState::CreatedHciChannelUser
             };
         } else {
             match BluetoothHciSocket::bind_raw(dev_id) {
@@ -112,17 +102,16 @@ impl Hci {
 
             hci = Hci {
                 socket,
-                is_hci_channel_user,
                 is_dev_up: false,
                 stop_pool: false,
-                state: HciState::Created,
-                sub_state: HciSubState::None
+                state: HciState::Created
             };
         }
 
         Ok(hci)
     }
 
+    /// Run init bluetooth adapater and poll data.
     pub fn init(&mut self) -> Result<()> {
         let wait_time = time::Duration::from_millis(1000);
 
@@ -130,35 +119,29 @@ impl Hci {
             match self.socket.poll() {
                 Ok(data) => {
                     if data.len() > 0 {
-                        println!("send data: {:?}", data);
-                        // TODO
-                        //callback(self, BluetoothHciSocketMessage::Data { data: data.clone() })
+                        self.on_socket_data(&data)?;
                     }
                 },
-                Err(e) => println!("send data") //TODO callback(self, BluetoothHciSocketMessage::Error { error: e })
+                Err(e) => return Err(e)
             }
 
-            if self.is_hci_channel_user {
-                self.reset()?;
-            } else {
-                self.poll_is_dev_up()?;
-            }
-/*
             match self.state {
-                HciState::Created => {
-                    if self.is_hci_channel_user {
-                        self.reset()?;
-                    } else {
-                        self.poll_is_dev_up()?;
-                    }
+                HciState::CreatedHciChannelUser => {
+                    self.reset()?;
+                    self.state = HciState::Running
                 },
-                _ => println!("Ohohoho")
+                HciState::Created => {
+                    self.poll_is_dev_up()?;
+                    self.state = HciState::RunningPollDevUp
+                },
+                HciState::RunningPollDevUp => self.poll_is_dev_up()?,
+                ref e => return Err(Error::Other(format!("Unvalid state {:?}", e)))
             }
-*/
+
             thread::sleep(wait_time);
 
             if self.stop_pool {
-                println!("Goodbye");
+                self.state = HciState::Stopping;
                 break;
             }
         }
@@ -166,6 +149,7 @@ impl Hci {
         Ok(())
     }
 
+    /// Reset bluetooth adaptater.
     fn reset(&mut self) -> Result<()> {
         let mut cmd = BytesMut::with_capacity(4);
 
@@ -178,9 +162,10 @@ impl Hci {
         Ok(())
     }
 
+    /// Check if device is up.
     fn poll_is_dev_up(&mut self) -> Result<()> {
         let is_dev_up ;
-println!("poll_is_dev_up");
+
         match self.socket.is_dev_up() {
             Ok(b) => is_dev_up = b,
             Err(_) => is_dev_up = false
@@ -195,45 +180,6 @@ println!("poll_is_dev_up");
                 self.write_le_host_supported()?;
                 self.read_le_host_supported()?;
                 self.read_bd_addr()?;
-                /*
-                match  self.sub_state {
-                    HciSubState::None => {
-                        println!("socket filter");
-                        self.set_socket_filter()?;
-                        self.sub_state = HciSubState::IsDevUpEventMask;
-                    },
-                    HciSubState::IsDevUpEventMask => {
-                        println!("envent mask");
-                        self.set_event_mask()?;
-                        self.sub_state = HciSubState::IsDevUpLeEventMask;
-                    }
-                    HciSubState::IsDevUpLeEventMask => {
-                        println!("envent mask le");
-                        self.set_le_event_mask()?;
-                        self.sub_state = HciSubState::IsDevUpReadLocalVersion;
-                    },
-                    HciSubState::IsDevUpReadLocalVersion => {
-                        println!("read_local_version");
-                        self.read_local_version()?;
-                        self.sub_state = HciSubState::IsDevUpReadLocalVersion;
-                    },
-                    HciSubState::IsDevUpWriteLeHostSupported => {
-                        println!("write_le_host_supported");
-                        self.write_le_host_supported()?;
-                        self.sub_state = HciSubState::IsDevUpReadLocalVersion;
-                    },
-                    HciSubState::IsDevUpReadLeHostSupported => {
-                        println!("read_le_host_supported");
-                        self.read_le_host_supported()?;
-                        self.sub_state = HciSubState::IsDevUpReadLocalVersion;
-                    },
-                    HciSubState::IsDevUpReadBdAddr => {
-                        println!("read_bd_addr");
-                        self.read_bd_addr()?;
-                        self.sub_state = HciSubState::None;
-                        self.state = HciState::Running;
-                    },
-                }*/
             }
         } else {
             // TODO
@@ -241,10 +187,15 @@ println!("poll_is_dev_up");
         }
 
         self.is_dev_up = is_dev_up;
-// TODO setTimeout(this.pollIsDevUp.bind(this), 1000);
+
+        // In original code of Noble :
+        // setTimeout(this.pollIsDevUp.bind(this), 1000);
+        // But here, whe do this in init() method
+
         Ok(())
     }
 
+    /// Set filter of socket.
     fn set_socket_filter(&mut self) -> Result<()> {
         let mut filter = BytesMut::with_capacity(14);
 
@@ -263,6 +214,7 @@ println!("poll_is_dev_up");
         Ok(())
     }
 
+    /// Set type event.
     fn set_event_mask(&mut self) -> Result<()> {
         let mut cmd = BytesMut::with_capacity(12);
 
@@ -287,6 +239,7 @@ println!("poll_is_dev_up");
         Ok(())
     }
 
+    /// Set type of event for Low-Energy bluetooth.
     fn set_le_event_mask(&mut self) -> Result<()> {
         let mut cmd = BytesMut::with_capacity(12);
 
@@ -311,6 +264,7 @@ println!("poll_is_dev_up");
         Ok(())
     }
 
+    /// Read version of bluetooth supported by local adapter.
     fn read_local_version(&mut self) -> Result<()> {
         let mut cmd = BytesMut::with_capacity(4);
 
@@ -325,6 +279,7 @@ println!("poll_is_dev_up");
         Ok(())
     }
 
+    /// Set Low-Energie Host mode for local adapter.
     fn write_le_host_supported(&mut self) -> Result<()> {
         let mut cmd = BytesMut::with_capacity(4);
 
@@ -339,6 +294,7 @@ println!("poll_is_dev_up");
         Ok(())
     }
 
+    /// Read Low-Energie Host mode for local adapter.
     fn read_le_host_supported(&mut self) -> Result<()> {
         let mut cmd = BytesMut::with_capacity(4);
 
@@ -353,6 +309,7 @@ println!("poll_is_dev_up");
         Ok(())
     }
 
+    /// Read address.
     fn read_bd_addr(&mut self) -> Result<()> {
         let mut cmd = BytesMut::with_capacity(4);
 
@@ -367,4 +324,37 @@ println!("poll_is_dev_up");
         Ok(())
     }
 
+    /// Manage response from bluetooth.
+    fn on_socket_data(&mut self, data: &[u8]) -> Result<()> {
+        let event_type = data[0];
+
+        match event_type {
+            HCI_EVENT_PKT => self.manage_hci_event_pkt(data),
+            HCI_ACLDATA_PKT => println!("HCI_EVENT_PKT"),
+            HCI_COMMAND_PKT => println!("HCI_EVENT_PKT"),
+            e => {
+                // TODO send error to caller
+                println!("Unknow event type from bluetooth: {}", e)
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Manage response type hci event pkt from bluetooth.
+    fn manage_hci_event_pkt(&mut self, data: &[u8]) {
+        let sub_event_type = data[1];
+
+        match sub_event_type {
+            EVT_DISCONN_COMPLETE => println!("EVT_DISCONN_COMPLETE"),
+            EVT_ENCRYPT_CHANGE=> println!("EVT_ENCRYPT_CHANGE"),
+            EVT_CMD_COMPLETE=> println!("EVT_CMD_COMPLETE"),
+            EVT_CMD_STATUS=> println!("EVT_CMD_STATUS"),
+            EVT_LE_META_EVENT=> println!("EVT_LE_META_EVENT"),
+            e => {
+                // TODO send error to caller
+                println!("Unknow event type from bluetooth: {}", e)
+            }
+        }
+    }
 }
