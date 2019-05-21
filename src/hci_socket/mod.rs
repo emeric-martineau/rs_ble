@@ -159,6 +159,8 @@ impl Hci {
         cmd.put_u16_le(OCF_RESET as u16 | ((OGF_HOST_CTL as u16) << 10) as u16);
         cmd.put_u8(0x00);
 
+        // TODO log debug('reset - writing: ' + cmd.toString('hex'));
+
         self.socket.write(&cmd)?;
 
         Ok(())
@@ -211,6 +213,8 @@ impl Hci {
         filter.put_u32_le(event_mask_2);
         filter.put_u16_le(opcode);
 
+        // TODO log debug('setting filter to: ' + filter.toString('hex'));
+
         self.socket.set_filter(&filter)?;
 
         Ok(())
@@ -235,6 +239,8 @@ impl Hci {
         cmd.put_u8(0xf8);
         cmd.put_u8(0xbf);
         cmd.put_u8(0x3d);
+
+        // TODO log debug('set event mask - writing: ' + cmd.toString('hex'));
 
         self.socket.write(&cmd)?;
 
@@ -261,6 +267,8 @@ impl Hci {
         cmd.put_u8(0x00);
         cmd.put_u8(0x00);
 
+        // TODO log debug('set le event mask - writing: ' + cmd.toString('hex'));
+
         self.socket.write(&cmd)?;
 
         Ok(())
@@ -275,6 +283,9 @@ impl Hci {
 
         // Length
         cmd.put_u8(0);
+
+
+        // TODO debug('read local version - writing: ' + cmd.toString('hex'));
 
         self.socket.write(&cmd)?;
 
@@ -291,6 +302,8 @@ impl Hci {
         // Length
         cmd.put_u8(0);
 
+        // TODO log debug('write LE host supported - writing: ' + cmd.toString('hex'));
+
         self.socket.write(&cmd)?;
 
         Ok(())
@@ -305,6 +318,8 @@ impl Hci {
 
         // Length
         cmd.put_u8(0);
+
+        // TODO log debug('read LE host supported - writing: ' + cmd.toString('hex'));
 
         self.socket.write(&cmd)?;
 
@@ -321,6 +336,8 @@ impl Hci {
         // Length
         cmd.put_u8(0);
 
+        // TODO log debug('read bd addr - writing: ' + cmd.toString('hex'));
+
         self.socket.write(&cmd)?;
 
         Ok(())
@@ -328,8 +345,11 @@ impl Hci {
 
     /// Manage response from bluetooth.
     fn on_socket_data(&mut self, data: &mut Cursor<Bytes>) -> Result<()> {
+        // TODO log debug('onSocketData: ' + data.toString('hex'));
         // data[0]
         let event_type = data.get_u8();
+
+        // TODO log debug('\tevent type = ' + eventType);
 
         match event_type {
             HCI_EVENT_PKT => self.manage_hci_event_pkt(data),
@@ -348,6 +368,8 @@ impl Hci {
     fn manage_hci_event_pkt(&mut self, data: &mut Cursor<Bytes>) {
         // data[1]
         let sub_event_type = data.get_u8();
+
+        // TODO log debug('\tsub event type = ' + subEventType);
 
         match sub_event_type {
             EVT_DISCONN_COMPLETE => self.manage_hci_event_pkt_disconnect(data),
