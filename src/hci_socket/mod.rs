@@ -375,7 +375,7 @@ impl Hci {
             EVT_DISCONN_COMPLETE => self.manage_hci_event_pkt_disconnect(data),
             EVT_ENCRYPT_CHANGE=> self.manage_hci_event_pkt_encrypt_change(data),
             EVT_CMD_COMPLETE=> self.manage_hci_event_pkt_cmd(data),
-            EVT_CMD_STATUS=> println!("EVT_CMD_STATUS"),// TODO
+            EVT_CMD_STATUS=>self.manage_hci_event_pkt_cmd_status(data),
             EVT_LE_META_EVENT=> println!("EVT_LE_META_EVENT"),// TODO
             e => {
                 // TODO send error to caller
@@ -410,7 +410,6 @@ impl Hci {
         // TODO this.processCmdCompleteEvent(cmd, status, result);
     }
 
-
     /// Manage event encryt change.
     fn manage_hci_event_pkt_encrypt_change(&mut self, data: &mut Cursor<Bytes>) {
         data.set_position(4);
@@ -421,5 +420,17 @@ impl Hci {
         println!("handle: {:?}, encrypt: {:?}", handle, encrypt);
 
         // TODO this.emit('encryptChange', handle, encrypt);
+    }
+
+    /// Manage event command status.
+    fn manage_hci_event_pkt_cmd_status(&mut self, data: &mut Cursor<Bytes>) {
+        let status = data.get_u8();
+        data.set_position(5);
+        let cmd = data.get_u16_le();
+
+        println!("EVT_CMD_COMPLETE");
+        println!("cmd: {:?}, status: {:?}", cmd, status);
+
+        // TODO this.processCmdStatusEvent(cmd, status);
     }
 }
