@@ -351,7 +351,7 @@ impl Hci {
 
         match sub_event_type {
             EVT_DISCONN_COMPLETE => self.manage_hci_event_pkt_disconnect(data),
-            EVT_ENCRYPT_CHANGE=> println!("EVT_ENCRYPT_CHANGE"),// TODO
+            EVT_ENCRYPT_CHANGE=> self.manage_hci_event_pkt_encrypt_change(data),
             EVT_CMD_COMPLETE=> self.manage_hci_event_pkt_cmd(data),
             EVT_CMD_STATUS=> println!("EVT_CMD_STATUS"),// TODO
             EVT_LE_META_EVENT=> println!("EVT_LE_META_EVENT"),// TODO
@@ -386,5 +386,18 @@ impl Hci {
         println!("cmd: {:?}, status: {:?}, result: {:?}", cmd, status, result);
 
         // TODO this.processCmdCompleteEvent(cmd, status, result);
+    }
+
+
+    /// Manage event encryt change.
+    fn manage_hci_event_pkt_encrypt_change(&mut self, data: &mut Cursor<Bytes>) {
+        data.set_position(4);
+        let handle = data.get_u16_le();
+        let encrypt = data.get_u8();
+
+        println!("EVT_ENCRYPT_CHANGE");
+        println!("handle: {:?}, encrypt: {:?}", handle, encrypt);
+
+        // TODO this.emit('encryptChange', handle, encrypt);
     }
 }
