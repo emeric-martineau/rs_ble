@@ -7,7 +7,7 @@ pub mod error;
 use std::collections::HashMap;
 use std::clone::Clone;
 
-use bytes::BytesMut;
+use bytes::{Bytes, BytesMut};
 use libc::{
     AF_BLUETOOTH, SOCK_CLOEXEC, SOCK_RAW, PF_BLUETOOTH, SOCK_SEQPACKET, F_SETFL, O_NONBLOCK,
     socket, ioctl, bind, connect, fcntl, setsockopt, write, close, read
@@ -39,7 +39,7 @@ pub const ATT_CID: u16 = 4;
 #[derive(Debug, Clone)]
 pub enum BluetoothHciSocketMessage {
     Data {
-        data: BytesMut
+        data: Bytes
     },
     Error {
         error: Error
@@ -228,7 +228,7 @@ impl BluetoothHciSocket {
 
     /// Pool data.
     /// Blocking call.
-    pub fn poll(&mut self) -> Result<BytesMut> {
+    pub fn poll(&mut self) -> Result<Bytes> {
         let mut data : PollBuffer = [0u8; POLL_BUFFER_SIZE];
 
         let result = handle_error(unsafe {
@@ -254,7 +254,7 @@ impl BluetoothHciSocket {
             }
         }
 
-        Ok(BytesMut::from(&data[0..length]))
+        Ok(Bytes::from(&data[0..length]))
     }
 
     /// Disconnect socket if need, by looking data.

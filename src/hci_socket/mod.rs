@@ -4,10 +4,11 @@
 pub mod hci;
 
 use std::{thread, time};
+use std::io::Cursor;
 
 use self::hci::{BluetoothHciSocket, BluetoothHciSocketMessage};
 use self::hci::error::{Result, Error};
-use bytes::{BytesMut, BufMut};
+use bytes::{BytesMut, BufMut, Bytes, Buf};
 
 /// Internal state of Hci
 #[derive(Debug)]
@@ -111,7 +112,7 @@ impl Hci {
         Ok(hci)
     }
 
-    /// Run init bluetooth adapater and poll data.
+    /// Run init bluetooth adapter and poll data.
     pub fn init(&mut self) -> Result<()> {
         let wait_time = time::Duration::from_millis(1000);
 
@@ -119,7 +120,8 @@ impl Hci {
             match self.socket.poll() {
                 Ok(data) => {
                     if data.len() > 0 {
-                        self.on_socket_data(&data)?;
+                        let mut cursor = Cursor::new(data);
+                        self.on_socket_data(&mut cursor)?;
                     }
                 },
                 Err(e) => return Err(e)
@@ -135,7 +137,7 @@ impl Hci {
                     self.state = HciState::RunningPollDevUp
                 },
                 HciState::RunningPollDevUp => self.poll_is_dev_up()?,
-                ref e => return Err(Error::Other(format!("Unvalid state {:?}", e)))
+                ref e => return Err(Error::Other(format!("Invalid state {:?}", e)))
             }
 
             thread::sleep(wait_time);
@@ -149,7 +151,7 @@ impl Hci {
         Ok(())
     }
 
-    /// Reset bluetooth adaptater.
+    /// Reset bluetooth adapter.
     fn reset(&mut self) -> Result<()> {
         let mut cmd = BytesMut::with_capacity(4);
 
@@ -325,16 +327,17 @@ impl Hci {
     }
 
     /// Manage response from bluetooth.
-    fn on_socket_data(&mut self, data: &[u8]) -> Result<()> {
-        let event_type = data[0];
+    fn on_socket_data(&mut self, data: &mut Cursor<Bytes>) -> Result<()> {
+        // data[0]
+        let event_type = data.get_u8();
 
         match event_type {
             HCI_EVENT_PKT => self.manage_hci_event_pkt(data),
-            HCI_ACLDATA_PKT => println!("HCI_EVENT_PKT"),
-            HCI_COMMAND_PKT => println!("HCI_EVENT_PKT"),
+            HCI_ACLDATA_PKT => println!("HCI_EVENT_PKT"), // TODO
+            HCI_COMMAND_PKT => println!("HCI_EVENT_PKT"), // TODO
             e => {
                 // TODO send error to caller
-                println!("Unknow event type from bluetooth: {}", e)
+                println!("Unknown event type from bluetooth: {}", e)
             }
         }
 
@@ -342,19 +345,32 @@ impl Hci {
     }
 
     /// Manage response type hci event pkt from bluetooth.
-    fn manage_hci_event_pkt(&mut self, data: &[u8]) {
-        let sub_event_type = data[1];
+    fn manage_hci_event_pkt(&mut self, data: &mut Cursor<Bytes>) {
+        // data[1]
+        let sub_event_type = data.get_u8();
 
         match sub_event_type {
-            EVT_DISCONN_COMPLETE => println!("EVT_DISCONN_COMPLETE"),
-            EVT_ENCRYPT_CHANGE=> println!("EVT_ENCRYPT_CHANGE"),
-            EVT_CMD_COMPLETE=> println!("EVT_CMD_COMPLETE"),
-            EVT_CMD_STATUS=> println!("EVT_CMD_STATUS"),
-            EVT_LE_META_EVENT=> println!("EVT_LE_META_EVENT"),
+            EVT_DISCONN_COMPLETE => self.manage_hci_event_pkt_disconnect(data),
+            EVT_ENCRYPT_CHANGE=> println!("EVT_ENCRYPT_CHANGE"),// TODO
+            EVT_CMD_COMPLETE=> println!("EVT_CMD_COMPLETE"),// TODO
+            EVT_CMD_STATUS=> println!("EVT_CMD_STATUS"),// TODO
+            EVT_LE_META_EVENT=> println!("EVT_LE_META_EVENT"),// TODO
             e => {
                 // TODO send error to caller
-                println!("Unknow event type from bluetooth: {}", e)
+                println!("Unknown event type from bluetooth: {}", e)
             }
         }
+    }
+
+    /// Manage event disconnect.
+    fn manage_hci_event_pkt_disconnect(&mut self, data: &mut Cursor<Bytes>) {
+        data.set_position(4);
+        let handle = data.get_u16_le();
+        let reason = data.get_u8();
+
+        println!("EVT_DISCONN_COMPLETE");
+        println!("handle: {:?}, reason: {:?}", handle, reason);
+
+        // TODO this.emit('disconnComplete', handle, reason);
     }
 }
