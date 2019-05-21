@@ -376,7 +376,7 @@ impl Hci {
             EVT_ENCRYPT_CHANGE=> self.manage_hci_event_pkt_encrypt_change(data),
             EVT_CMD_COMPLETE=> self.manage_hci_event_pkt_cmd(data),
             EVT_CMD_STATUS=>self.manage_hci_event_pkt_cmd_status(data),
-            EVT_LE_META_EVENT=> println!("EVT_LE_META_EVENT"),// TODO
+            EVT_LE_META_EVENT=> self.manage_hci_event_pkt_le_meta(data),
             e => {
                 // TODO send error to caller
                 println!("Unknown event type from bluetooth: {}", e)
@@ -401,6 +401,7 @@ impl Hci {
         data.set_position(4);
         let cmd = data.get_u16_le();
         let status = data.get_u8();
+
         let position = data.position() as usize;
         let result = &data.get_ref()[position..];
 
@@ -432,5 +433,19 @@ impl Hci {
         println!("cmd: {:?}, status: {:?}", cmd, status);
 
         // TODO this.processCmdStatusEvent(cmd, status);
+    }
+
+    /// Manage event le meta.
+    fn manage_hci_event_pkt_le_meta(&mut self, data: &mut Cursor<Bytes>) {
+        let le_meta_event_type = data.get_u8();
+        let le_meta_event_status = data.get_u8();
+
+        let position = data.position() as usize;
+        let le_meta_event_data = &data.get_ref()[position..];
+
+        println!("EVT_LE_META_EVENT");
+        println!("type: {:?}, status: {:?}, data: {:?}", le_meta_event_type, le_meta_event_status, le_meta_event_data);
+
+        // TODO this.processLeMetaEvent(leMetaEventType, leMetaEventStatus, leMetaEventData);
     }
 }
