@@ -352,7 +352,7 @@ impl Hci {
         match sub_event_type {
             EVT_DISCONN_COMPLETE => self.manage_hci_event_pkt_disconnect(data),
             EVT_ENCRYPT_CHANGE=> println!("EVT_ENCRYPT_CHANGE"),// TODO
-            EVT_CMD_COMPLETE=> println!("EVT_CMD_COMPLETE"),// TODO
+            EVT_CMD_COMPLETE=> self.manage_hci_event_pkt_cmd(data),
             EVT_CMD_STATUS=> println!("EVT_CMD_STATUS"),// TODO
             EVT_LE_META_EVENT=> println!("EVT_LE_META_EVENT"),// TODO
             e => {
@@ -372,5 +372,19 @@ impl Hci {
         println!("handle: {:?}, reason: {:?}", handle, reason);
 
         // TODO this.emit('disconnComplete', handle, reason);
+    }
+
+    /// Manage event complete.
+    fn manage_hci_event_pkt_cmd(&mut self, data: &mut Cursor<Bytes>) {
+        data.set_position(4);
+        let cmd = data.get_u16_le();
+        let status = data.get_u8();
+        let position = data.position() as usize;
+        let result = &data.get_ref()[position..];
+
+        println!("EVT_CMD_COMPLETE");
+        println!("cmd: {:?}, status: {:?}, result: {:?}", cmd, status, result);
+
+        // TODO this.processCmdCompleteEvent(cmd, status, result);
     }
 }
