@@ -25,10 +25,9 @@ const HCI_ACLDATA_PKT: u8 = 0x02;
 const HCI_EVENT_PKT: u8 = 0x04;
 
 const OGF_HOST_CTL: u16 = 0x03;
-const OCF_RESET: u16 = 0x0003;
-const OCF_READ_LOCAL_VERSION: u16 = 0x0001;
-const OCF_WRITE_LE_HOST_SUPPORTED: u16 = 0x006D;
 const OGF_INFO_PARAM: u16 = 0x04;
+const OGF_STATUS_PARAM: u16 = 0x05;
+const OGF_LE_CTL: u16 = 0x08;
 
 const EVT_DISCONN_COMPLETE: u8 = 0x05;
 const EVT_ENCRYPT_CHANGE: u8 = 0x08;
@@ -36,15 +35,24 @@ const EVT_CMD_COMPLETE: u8 = 0x0e;
 const EVT_CMD_STATUS: u8 = 0x0f;
 const EVT_LE_META_EVENT: u8 = 0x3e;
 
+const OCF_RESET: u16 = 0x0003;
+const OCF_READ_LOCAL_VERSION: u16 = 0x0001;
+const OCF_WRITE_LE_HOST_SUPPORTED: u16 = 0x006D;
 const OCF_SET_EVENT_MASK: u16 = 0x0001;
 const OCF_READ_LE_HOST_SUPPORTED: u16 = 0x006C;
 const OCF_READ_BD_ADDR: u16 = 0x0009;
+const OCF_READ_RSSI: u16 = 0x0005;
+const OCF_LE_SET_SCAN_PARAMETERS: u16 = 0x000b;
 
 const SET_EVENT_MASK_CMD: u16 = OCF_SET_EVENT_MASK | OGF_HOST_CTL << 10;
 const READ_LOCAL_VERSION_CMD: u16 = OCF_READ_LOCAL_VERSION | (OGF_INFO_PARAM << 10);
 const WRITE_LE_HOST_SUPPORTED_CMD: u16 = OCF_WRITE_LE_HOST_SUPPORTED | OGF_HOST_CTL << 10;
 const READ_LE_HOST_SUPPORTED_CMD: u16 = OCF_READ_LE_HOST_SUPPORTED | OGF_HOST_CTL << 10;
 const READ_BD_ADDR_CMD: u16 = OCF_READ_BD_ADDR | (OGF_INFO_PARAM << 10);
+const RESET_CMD:u16 = OCF_RESET | OGF_HOST_CTL << 10;
+const READ_RSSI_CMD: u16 = OCF_READ_RSSI | OGF_STATUS_PARAM << 10;
+
+const LE_SET_SCAN_PARAMETERS_CMD: u16 = OCF_LE_SET_SCAN_PARAMETERS | OGF_LE_CTL << 10;
 
 /// Callback when receive data.
 pub trait HciCallback {
@@ -406,6 +414,7 @@ impl<'a> Hci<'a> {
         let reason = data.get_u8();
 
         // TODO log println!("EVT_DISCONN_COMPLETE -> handle: {:?}, reason: {:?}", handle, reason);
+
         self.callback.disconn_complete(handle, reason);
     }
 
@@ -417,11 +426,11 @@ impl<'a> Hci<'a> {
 
         let position = data.position() as usize;
         let result = &data.get_ref()[position..];
+        let mut result = Cursor::new(Bytes::from(result));
 
-        println!("EVT_CMD_COMPLETE");
-        println!("cmd: {:?}, status: {:?}, result: {:?}", cmd, status, result);
+        // TODO log println!("EVT_CMD_COMPLETE -> cmd: {:?}, status: {:?}, result: {:?}", cmd, status, result);
 
-        // TODO this.processCmdCompleteEvent(cmd, status, result);
+        self.process_cmd_complete_event(cmd, status, &mut result);
     }
 
     /// Manage event encryt change.
@@ -459,5 +468,77 @@ impl<'a> Hci<'a> {
         println!("type: {:?}, status: {:?}, data: {:?}", le_meta_event_type, le_meta_event_status, le_meta_event_data);
 
         // TODO this.processLeMetaEvent(leMetaEventType, leMetaEventStatus, leMetaEventData);
+    }
+
+    /// Call when receive from BT adapter cmd complete.
+    fn process_cmd_complete_event(&mut self, cmd: u16, status: u8, result: &mut Cursor<Bytes>) {
+        match cmd {
+            RESET_CMD => {
+                // TODO catch error
+                self.set_event_mask();
+                self.set_le_event_mask();
+                self.read_local_version();
+                self.read_bd_addr();
+            },
+            READ_LE_HOST_SUPPORTED_CMD => {
+                if status == 0 {
+                    let le = result.get_u8();
+                    let simul = result.get_u8();
+
+                    // TODO log debug('\t\t\tle = ' + le);
+                    // TODO log debug('\t\t\tsimul = ' + simul);
+
+                    println!("process_cmd_complete_event: READ_LE_HOST_SUPPORTED_CMD -> le: {:?}, simul: {:?}", le, simul);
+                }
+            }
+            READ_LOCAL_VERSION_CMD => {},
+            READ_BD_ADDR_CMD=> {},
+            LE_SET_SCAN_PARAMETERS_CMD => {},
+            READ_RSSI_CMD => {},
+            e => {
+                // TODO send error to caller
+                println!("Unknown cmd complete event from bluetooth: {}", e)
+            }
+        }
+/*
+
+  } else if (cmd === READ_LOCAL_VERSION_CMD) {
+    var hciVer = result.readUInt8(0);
+    var hciRev = result.readUInt16LE(1);
+    var lmpVer = result.readInt8(3);
+    var manufacturer = result.readUInt16LE(4);
+    var lmpSubVer = result.readUInt16LE(6);
+
+    if (hciVer < 0x06) {
+      this.emit('stateChange', 'unsupported');
+    } else if (this._state !== 'poweredOn') {
+      this.setScanEnabled(false, true);
+      this.setScanParameters();
+    }
+
+    this.emit('readLocalVersion', hciVer, hciRev, lmpVer, manufacturer, lmpSubVer);
+  } else if (cmd === READ_BD_ADDR_CMD) {
+    this.addressType = 'public';
+    this.address = result.toString('hex').match(/.{1,2}/g).reverse().join(':');
+
+    debug('address = ' + this.address);
+
+    this.emit('addressChange', this.address);
+  } else if (cmd === LE_SET_SCAN_PARAMETERS_CMD) {
+    this.emit('stateChange', 'poweredOn');
+
+    this.emit('leScanParametersSet');
+  } else if (cmd === LE_SET_SCAN_ENABLE_CMD) {
+    this.emit('leScanEnableSet', status);
+  } else if (cmd === READ_RSSI_CMD) {
+    var handle = result.readUInt16LE(0);
+    var rssi = result.readInt8(2);
+
+    debug('\t\t\thandle = ' + handle);
+    debug('\t\t\trssi = ' + rssi);
+
+    this.emit('rssiRead', handle, rssi);
+  }
+*/
     }
 }
