@@ -35,20 +35,6 @@ pub const BYTE_ORDER: u32 = 1234;
 /// ???
 pub const ATT_CID: u16 = 4;
 
-/// Message send to BT HCI Socket callback.
-#[derive(Debug, Clone)]
-pub enum BluetoothHciSocketMessage {
-    Data {
-        data: Bytes
-    },
-    Error {
-        error: Error
-    }
-}
-
-/// Callback for BluetoothHciSocket.start()
-pub type BtHciSocketCallback = fn(bhs: &BluetoothHciSocket, message: BluetoothHciSocketMessage);
-
 /// Structure for BT HCI Socket.
 #[derive(Debug)]
 pub struct BluetoothHciSocket {

@@ -6,7 +6,7 @@ pub mod hci;
 use std::{thread, time};
 use std::io::Cursor;
 
-use self::hci::{BluetoothHciSocket, BluetoothHciSocketMessage};
+use self::hci::{BluetoothHciSocket};
 use self::hci::error::{Result, Error};
 use bytes::{BytesMut, BufMut, Bytes, Buf};
 
@@ -46,8 +46,19 @@ const WRITE_LE_HOST_SUPPORTED_CMD: u16 = OCF_WRITE_LE_HOST_SUPPORTED | OGF_HOST_
 const READ_LE_HOST_SUPPORTED_CMD: u16 = OCF_READ_LE_HOST_SUPPORTED | OGF_HOST_CTL << 10;
 const READ_BD_ADDR_CMD: u16 = OCF_READ_BD_ADDR | (OGF_INFO_PARAM << 10);
 
-
-
+/// Callback when receive data.
+pub trait HciCallback {
+    fn state_change(&self);
+    fn address_change(&self);
+    fn le_conn_complete(&self);
+    fn le_conn_update_complete(&self);
+    fn rssi_read(&self);
+    /// Call when BT peripheral disconnect.
+    fn disconn_complete(&self, handle: u16, reason: u8);
+    /// Call when BT encrypt change.
+    fn encrypt_change(&self, handle: u16, encrypt: u8);
+    fn acl_data_pkt(&self);
+}
 
 /*
 var Hci = function() {
@@ -63,10 +74,9 @@ var Hci = function() {
 */
 
 /// Hci structure.
-pub struct Hci {
+pub struct Hci<'a> {
     socket: BluetoothHciSocket,
     /*
-    is_dev_up: bool,
     state: str,
     device_id: str,
     handle_buffers: str,*/
@@ -74,12 +84,15 @@ pub struct Hci {
     is_dev_up: bool,
     /// Send stop to pool
     stop_pool: bool,
+    /// State of Hci
     state: HciState,
+    /// Callback
+    callback: &'a HciCallback,
 }
 
-impl Hci {
+impl<'a> Hci<'a> {
     /// Create Hci interface.
-    pub fn new(dev_id: Option<u16>, is_hci_channel_user: bool) -> Result<Hci> {
+    pub fn new(dev_id: Option<u16>, is_hci_channel_user: bool, callback: &HciCallback) -> Result<Hci> {
         let socket;
         let hci;
 
@@ -93,7 +106,8 @@ impl Hci {
                 socket,
                 is_dev_up: false,
                 stop_pool: false,
-                state: HciState::CreatedHciChannelUser
+                state: HciState::CreatedHciChannelUser,
+                callback
             };
         } else {
             match BluetoothHciSocket::bind_raw(dev_id) {
@@ -105,7 +119,8 @@ impl Hci {
                 socket,
                 is_dev_up: false,
                 stop_pool: false,
-                state: HciState::Created
+                state: HciState::Created,
+                callback
             };
         }
 
@@ -390,10 +405,8 @@ impl Hci {
         let handle = data.get_u16_le();
         let reason = data.get_u8();
 
-        println!("EVT_DISCONN_COMPLETE");
-        println!("handle: {:?}, reason: {:?}", handle, reason);
-
-        // TODO this.emit('disconnComplete', handle, reason);
+        // TODO log println!("EVT_DISCONN_COMPLETE -> handle: {:?}, reason: {:?}", handle, reason);
+        self.callback.disconn_complete(handle, reason);
     }
 
     /// Manage event complete.
@@ -417,10 +430,9 @@ impl Hci {
         let handle = data.get_u16_le();
         let encrypt = data.get_u8();
 
-        println!("EVT_ENCRYPT_CHANGE");
-        println!("handle: {:?}, encrypt: {:?}", handle, encrypt);
+        // TODO log println!("EVT_ENCRYPT_CHANGE -> handle: {:?}, encrypt: {:?}", handle, encrypt);
 
-        // TODO this.emit('encryptChange', handle, encrypt);
+        self.callback.encrypt_change(handle, encrypt);
     }
 
     /// Manage event command status.
