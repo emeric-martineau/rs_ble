@@ -580,43 +580,52 @@ impl<'a> Hci<'a> {
         // TODO this.processLeMetaEvent(leMetaEventType, leMetaEventStatus, leMetaEventData);
     }
 
+    /// Reset adaptor.
+    fn reset_cmd(&mut self) {
+        // TODO catch error
+        self.set_event_mask();
+        self.set_le_event_mask();
+        self.read_local_version();
+        self.read_bd_addr();
+    }
+
+    /// Read low-energy command.
+    fn read_le_host_supported_cmd(&mut self, status: u8, result: &mut Cursor<Bytes>) {
+        if status == 0 {
+            let le = result.get_u8();
+            let simul = result.get_u8();
+
+            self.debug(&format!("\t\t\tle = 0x{:02x}", le));
+            self.debug(&format!("\t\t\ttsimul = 0x{:02x}", simul));
+        }
+    }
+
+    /// Read local version command.
+    fn read_local_version_cmd(&mut self, result: &mut Cursor<Bytes>) {
+        let hci_ver = result.get_u8();
+        let hci_rev = result.get_u16_le();
+        let lmp_ver = result.get_u8();
+        let manufacturer = result.get_u16_le();
+        let lmp_sub_ver = result.get_u16_le();
+
+        if hci_ver < 0x06 {
+            self.state = HciState::Unsupported;
+            self.callback.state_change(self.state.clone());
+        } else if self.state != HciState::PoweredOn {
+            // TODO catch error
+            self.set_scan_enabled(false, true);
+            self.set_scan_parameters();
+        }
+
+        self.callback.read_local_version(hci_ver, hci_rev, lmp_ver, manufacturer, lmp_sub_ver);
+    }
+
     /// Call when receive from BT adapter cmd complete.
     fn process_cmd_complete_event(&mut self, cmd: u16, status: u8, result: &mut Cursor<Bytes>) {
         match cmd {
-            RESET_CMD => {
-                // TODO catch error
-                self.set_event_mask();
-                self.set_le_event_mask();
-                self.read_local_version();
-                self.read_bd_addr();
-            },
-            READ_LE_HOST_SUPPORTED_CMD => {
-                if status == 0 {
-                    let le = result.get_u8();
-                    let simul = result.get_u8();
-
-                    self.debug(&format!("\t\t\tle = 0x{:02x}", le));
-                    self.debug(&format!("\t\t\ttsimul = 0x{:02x}", simul));
-                }
-            }
-            READ_LOCAL_VERSION_CMD => {
-                let hci_ver = result.get_u8();
-                let hci_rev = result.get_u16_le();
-                let lmp_ver = result.get_u8();
-                let manufacturer = result.get_u16_le();
-                let lmp_sub_ver = result.get_u16_le();
-
-                if hci_ver < 0x06 {
-                    self.state = HciState::Unsupported;
-                    self.callback.state_change(self.state.clone());
-                } else if self.state != HciState::PoweredOn {
-                    // TODO catch error
-                    self.set_scan_enabled(false, true);
-                    self.set_scan_parameters();
-                }
-
-                self.callback.read_local_version(hci_ver, hci_rev, lmp_ver, manufacturer, lmp_sub_ver);
-            },
+            RESET_CMD => self.reset_cmd(),
+            READ_LE_HOST_SUPPORTED_CMD => self.read_le_host_supported_cmd(status, result),
+            READ_LOCAL_VERSION_CMD => self.read_local_version_cmd(result),
             READ_BD_ADDR_CMD=> {},
             LE_SET_SCAN_PARAMETERS_CMD => {},
             READ_RSSI_CMD => {},
