@@ -2,12 +2,15 @@
 //!
 //! TODO comment
 pub mod hci;
+pub mod debug;
 
 use std::{thread, time};
 use std::io::Cursor;
 
 use self::hci::{BluetoothHciSocket};
 use self::hci::error::{Result, Error};
+use self::debug::HciSocketDebug;
+
 use bytes::{BytesMut, BufMut, Bytes, Buf};
 
 /// Internal state of Hci
@@ -84,6 +87,21 @@ pub trait HciCallback {
     fn read_local_version(&self, hci_ver: u8, hci_rev: u16, lmp_ver: u8, manufacturer: u16, lmp_sub_ver: u16);
 }
 
+pub trait HciLogger {
+    fn is_debug_enable(&self) -> bool;
+    fn debug(&self, expr: &str);
+}
+
+pub struct NoneLogger;
+
+impl HciLogger for NoneLogger {
+    fn is_debug_enable(&self) -> bool {
+        false
+    }
+
+    fn debug(&self, _expr: &str) {}
+}
+
 /*
 var Hci = function() {
   this._socket = new BluetoothHciSocket();
@@ -113,12 +131,18 @@ pub struct Hci<'a> {
     /// Callback
     callback: &'a HciCallback,
     /// State of Hci
-    state: HciState
+    state: HciState,
+    /// Logger.
+    logger: Option<&'a HciLogger>
 }
 
 impl<'a> Hci<'a> {
     /// Create Hci interface.
-    pub fn new(dev_id: Option<u16>, is_hci_channel_user: bool, callback: &HciCallback) -> Result<Hci> {
+    pub fn new(dev_id: Option<u16>, is_hci_channel_user: bool, callback: &'a HciCallback) -> Result<Self> {
+        Hci::new_with_logger(dev_id, is_hci_channel_user, callback, None)
+    }
+
+    pub fn new_with_logger(dev_id: Option<u16>, is_hci_channel_user: bool, callback: &'a HciCallback, logger: Option<&'a HciLogger>) -> Result<Self> {
         let socket;
         let hci;
 
@@ -134,7 +158,8 @@ impl<'a> Hci<'a> {
                 stop_pool: false,
                 struct_state: HciStructState::CreatedHciChannelUser,
                 callback,
-                state: HciState::PoweredOff
+                state: HciState::PoweredOff,
+                logger
             };
         } else {
             match BluetoothHciSocket::bind_raw(dev_id) {
@@ -148,7 +173,8 @@ impl<'a> Hci<'a> {
                 stop_pool: false,
                 struct_state: HciStructState::Created,
                 callback,
-                state: HciState::PoweredOff
+                state: HciState::PoweredOff,
+                logger
             };
         }
 
@@ -158,6 +184,15 @@ impl<'a> Hci<'a> {
     /// State of Hci.
     pub fn state(&mut self) -> HciState {
         self.state.clone()
+    }
+
+    /// Print debug
+    pub fn debug(&mut self, expr: &str) {
+        if let Some(log) = self.logger {
+            if log.is_debug_enable() {
+                log.debug(expr);
+            }
+        }
     }
 
     /// Run init bluetooth adapter and poll data.
@@ -207,7 +242,7 @@ impl<'a> Hci<'a> {
         cmd.put_u16_le(OCF_RESET as u16 | ((OGF_HOST_CTL as u16) << 10) as u16);
         cmd.put_u8(0x00);
 
-        // TODO log debug('reset - writing: ' + cmd.toString('hex'));
+        self.debug(&format!("reset - writing: {:?}", HciSocketDebug(&cmd)));
 
         self.socket.write(&cmd)?;
 
@@ -234,8 +269,7 @@ impl<'a> Hci<'a> {
                 self.read_bd_addr()?;
             }
         } else {
-            // TODO
-            // this.emit('stateChange', 'poweredOff');
+            self.callback.state_change(HciState::PoweredOff)
         }
 
         self.is_dev_up = is_dev_up;
@@ -261,7 +295,7 @@ impl<'a> Hci<'a> {
         filter.put_u32_le(event_mask_2);
         filter.put_u16_le(opcode);
 
-        // TODO log debug('setting filter to: ' + filter.toString('hex'));
+        self.debug(&format!("setting filter to: {:?}", HciSocketDebug(&filter)));
 
         self.socket.set_filter(&filter)?;
 
@@ -288,7 +322,7 @@ impl<'a> Hci<'a> {
         cmd.put_u8(0xbf);
         cmd.put_u8(0x3d);
 
-        // TODO log debug('set event mask - writing: ' + cmd.toString('hex'));
+        self.debug(&format!("set event mask - writing: {:?}", HciSocketDebug(&cmd)));
 
         self.socket.write(&cmd)?;
 
@@ -315,7 +349,7 @@ impl<'a> Hci<'a> {
         cmd.put_u8(0x00);
         cmd.put_u8(0x00);
 
-        // TODO log debug('set le event mask - writing: ' + cmd.toString('hex'));
+        self.debug(&format!("set le event mask - writing: {:?}", HciSocketDebug(&cmd)));
 
         self.socket.write(&cmd)?;
 
@@ -332,8 +366,7 @@ impl<'a> Hci<'a> {
         // Length
         cmd.put_u8(0);
 
-
-        // TODO debug('read local version - writing: ' + cmd.toString('hex'));
+        self.debug(&format!("read local version - writing: {:?}", HciSocketDebug(&cmd)));
 
         self.socket.write(&cmd)?;
 
@@ -350,7 +383,7 @@ impl<'a> Hci<'a> {
         // Length
         cmd.put_u8(0);
 
-        // TODO log debug('write LE host supported - writing: ' + cmd.toString('hex'));
+        self.debug(&format!("write LE host supported - writing: {:?}", HciSocketDebug(&cmd)));
 
         self.socket.write(&cmd)?;
 
@@ -367,7 +400,7 @@ impl<'a> Hci<'a> {
         // Length
         cmd.put_u8(0);
 
-        // TODO log debug('read LE host supported - writing: ' + cmd.toString('hex'));
+        self.debug(&format!("read LE host supported - writing: {:?}", HciSocketDebug(&cmd)));
 
         self.socket.write(&cmd)?;
 
@@ -384,7 +417,7 @@ impl<'a> Hci<'a> {
         // Length
         cmd.put_u8(0);
 
-        // TODO log debug('read bd addr - writing: ' + cmd.toString('hex'));
+        self.debug(&format!("read bd addr - writing: {:?}", HciSocketDebug(&cmd)));
 
         self.socket.write(&cmd)?;
 
@@ -409,13 +442,13 @@ impl<'a> Hci<'a> {
         }
 
         // duplicates: 0 -> duplicates, 1 -> non duplicates
-        if enabled {
+        if filter_duplicates {
             cmd.put_u8(0x01);
         } else {
             cmd.put_u8(0x00);
         }
 
-        // TODO log debug('set scan enabled - writing: ' + cmd.toString('hex'));
+        self.debug(&format!("set scan enabled - writing: {:?}", HciSocketDebug(&cmd)));
 
         self.socket.write(&cmd)?;
 
@@ -439,7 +472,7 @@ impl<'a> Hci<'a> {
         cmd.put_u8(0x00); // own address type: 0 -> public, 1 -> random
         cmd.put_u8(0x00); // filter: 0 -> all event types
 
-        // TODO log debug('set scan parameters - writing: ' + cmd.toString('hex'));
+        self.debug(&format!("set scan parameters - writing: {:?}", HciSocketDebug(&cmd)));
 
         self.socket.write(&cmd)?;
 
@@ -448,11 +481,12 @@ impl<'a> Hci<'a> {
 
     /// Manage response from bluetooth.
     fn on_socket_data(&mut self, data: &mut Cursor<Bytes>) -> Result<()> {
-        // TODO log debug('onSocketData: ' + data.toString('hex'));
+        self.debug(&format!("on_socket_data: {:?}", data));
+
         // data[0]
         let event_type = data.get_u8();
 
-        // TODO log debug('\tevent type = ' + eventType);
+        self.debug(&format!("\tevent type = {}", event_type));
 
         match event_type {
             HCI_EVENT_PKT => self.manage_hci_event_pkt(data),
@@ -472,7 +506,7 @@ impl<'a> Hci<'a> {
         // data[1]
         let sub_event_type = data.get_u8();
 
-        // TODO log debug('\tsub event type = ' + subEventType);
+        self.debug(&format!("\tsub event type = {}", sub_event_type));
 
         match sub_event_type {
             EVT_DISCONN_COMPLETE => self.manage_hci_event_pkt_disconnect(data),
@@ -493,7 +527,7 @@ impl<'a> Hci<'a> {
         let handle = data.get_u16_le();
         let reason = data.get_u8();
 
-        // TODO log println!("EVT_DISCONN_COMPLETE -> handle: {:?}, reason: {:?}", handle, reason);
+        self.debug(&format!("EVT_DISCONN_COMPLETE -> handle: 0x{:02x}, reason: 0x{:02x}", handle, reason));
 
         self.callback.disconn_complete(handle, reason);
     }
@@ -508,7 +542,7 @@ impl<'a> Hci<'a> {
         let result = &data.get_ref()[position..];
         let mut result = Cursor::new(Bytes::from(result));
 
-        // TODO log println!("EVT_CMD_COMPLETE -> cmd: {:?}, status: {:?}, result: {:?}", cmd, status, result);
+        self.debug(&format!("EVT_CMD_COMPLETE -> cmd: 0x{:02x}, status: 0x{:02x}, result: {:?}", cmd, status, result));
 
         self.process_cmd_complete_event(cmd, status, &mut result);
     }
@@ -519,7 +553,7 @@ impl<'a> Hci<'a> {
         let handle = data.get_u16_le();
         let encrypt = data.get_u8();
 
-        // TODO log println!("EVT_ENCRYPT_CHANGE -> handle: {:?}, encrypt: {:?}", handle, encrypt);
+        self.debug(&format!("EVT_ENCRYPT_CHANGE -> handle: 0x{:02x}, encrypt: 0x{:02x}", handle, encrypt));
 
         self.callback.encrypt_change(handle, encrypt);
     }
@@ -530,8 +564,7 @@ impl<'a> Hci<'a> {
         data.set_position(5);
         let cmd = data.get_u16_le();
 
-        println!("EVT_CMD_COMPLETE");
-        println!("cmd: {:?}, status: {:?}", cmd, status);
+        self.debug(&format!("EVT_CMD_COMPLETE -> cmd: 0x{:02x}, status: 0x{:02x}", cmd, status));
 
         // TODO this.processCmdStatusEvent(cmd, status);
     }
@@ -543,9 +576,6 @@ impl<'a> Hci<'a> {
 
         let position = data.position() as usize;
         let le_meta_event_data = &data.get_ref()[position..];
-
-        println!("EVT_LE_META_EVENT");
-        println!("type: {:?}, status: {:?}, data: {:?}", le_meta_event_type, le_meta_event_status, le_meta_event_data);
 
         // TODO this.processLeMetaEvent(leMetaEventType, leMetaEventStatus, leMetaEventData);
     }
@@ -565,10 +595,8 @@ impl<'a> Hci<'a> {
                     let le = result.get_u8();
                     let simul = result.get_u8();
 
-                    // TODO log debug('\t\t\tle = ' + le);
-                    // TODO log debug('\t\t\tsimul = ' + simul);
-
-                    println!("process_cmd_complete_event: READ_LE_HOST_SUPPORTED_CMD -> le: {:?}, simul: {:?}", le, simul);
+                    self.debug(&format!("\t\t\tle = 0x{:02x}", le));
+                    self.debug(&format!("\t\t\ttsimul = 0x{:02x}", simul));
                 }
             }
             READ_LOCAL_VERSION_CMD => {
@@ -594,7 +622,7 @@ impl<'a> Hci<'a> {
             READ_RSSI_CMD => {},
             e => {
                 // TODO send error to caller
-                println!("Unknown cmd complete event from bluetooth: {}", e)
+                println!("Unknown cmd complete event from bluetooth: 0x{:02x}", e)
             },
         }
 /*
