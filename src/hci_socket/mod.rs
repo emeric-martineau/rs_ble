@@ -12,12 +12,21 @@ use bytes::{BytesMut, BufMut, Bytes, Buf};
 
 /// Internal state of Hci
 #[derive(Debug)]
-enum HciState {
+enum HciStructState {
     Created,
     CreatedHciChannelUser,
     RunningPollDevUp,
     Running,
     Stopping
+}
+
+/// State of Hci interface.
+#[derive(Debug, Clone, PartialEq)]
+pub enum HciState {
+    PoweredOff,
+    PoweredOn,
+    Unauthorized,
+    Unsupported
 }
 
 const HCI_COMMAND_PKT: u8 = 0x01;
@@ -43,6 +52,7 @@ const OCF_READ_LE_HOST_SUPPORTED: u16 = 0x006C;
 const OCF_READ_BD_ADDR: u16 = 0x0009;
 const OCF_READ_RSSI: u16 = 0x0005;
 const OCF_LE_SET_SCAN_PARAMETERS: u16 = 0x000b;
+const OCF_LE_SET_SCAN_ENABLE: u16 = 0x000c;
 
 const SET_EVENT_MASK_CMD: u16 = OCF_SET_EVENT_MASK | OGF_HOST_CTL << 10;
 const READ_LOCAL_VERSION_CMD: u16 = OCF_READ_LOCAL_VERSION | (OGF_INFO_PARAM << 10);
@@ -51,12 +61,16 @@ const READ_LE_HOST_SUPPORTED_CMD: u16 = OCF_READ_LE_HOST_SUPPORTED | OGF_HOST_CT
 const READ_BD_ADDR_CMD: u16 = OCF_READ_BD_ADDR | (OGF_INFO_PARAM << 10);
 const RESET_CMD:u16 = OCF_RESET | OGF_HOST_CTL << 10;
 const READ_RSSI_CMD: u16 = OCF_READ_RSSI | OGF_STATUS_PARAM << 10;
+const LE_SET_SCAN_ENABLE_CMD: u16 = OCF_LE_SET_SCAN_ENABLE | OGF_LE_CTL << 10;
 
 const LE_SET_SCAN_PARAMETERS_CMD: u16 = OCF_LE_SET_SCAN_PARAMETERS | OGF_LE_CTL << 10;
 
+const HCI_VERSION_6: u8 = 0x06;
+
 /// Callback when receive data.
 pub trait HciCallback {
-    fn state_change(&self);
+    /// Call when change state.
+    fn state_change(&self, state: HciState);
     fn address_change(&self);
     fn le_conn_complete(&self);
     fn le_conn_update_complete(&self);
@@ -66,6 +80,8 @@ pub trait HciCallback {
     /// Call when BT encrypt change.
     fn encrypt_change(&self, handle: u16, encrypt: u8);
     fn acl_data_pkt(&self);
+    /// Call when get version.
+    fn read_local_version(&self, hci_ver: u8, hci_rev: u16, lmp_ver: u8, manufacturer: u16, lmp_sub_ver: u16);
 }
 
 /*
@@ -92,10 +108,12 @@ pub struct Hci<'a> {
     is_dev_up: bool,
     /// Send stop to pool
     stop_pool: bool,
-    /// State of Hci
-    state: HciState,
+    /// Internal state of struct Hci
+    struct_state: HciStructState,
     /// Callback
     callback: &'a HciCallback,
+    /// State of Hci
+    state: HciState
 }
 
 impl<'a> Hci<'a> {
@@ -114,8 +132,9 @@ impl<'a> Hci<'a> {
                 socket,
                 is_dev_up: false,
                 stop_pool: false,
-                state: HciState::CreatedHciChannelUser,
-                callback
+                struct_state: HciStructState::CreatedHciChannelUser,
+                callback,
+                state: HciState::PoweredOff
             };
         } else {
             match BluetoothHciSocket::bind_raw(dev_id) {
@@ -127,12 +146,18 @@ impl<'a> Hci<'a> {
                 socket,
                 is_dev_up: false,
                 stop_pool: false,
-                state: HciState::Created,
-                callback
+                struct_state: HciStructState::Created,
+                callback,
+                state: HciState::PoweredOff
             };
         }
 
         Ok(hci)
+    }
+
+    /// State of Hci.
+    pub fn state(&mut self) -> HciState {
+        self.state.clone()
     }
 
     /// Run init bluetooth adapter and poll data.
@@ -150,23 +175,23 @@ impl<'a> Hci<'a> {
                 Err(e) => return Err(e)
             }
 
-            match self.state {
-                HciState::CreatedHciChannelUser => {
+            match self.struct_state {
+                HciStructState::CreatedHciChannelUser => {
                     self.reset()?;
-                    self.state = HciState::Running
+                    self.struct_state = HciStructState::Running
                 },
-                HciState::Created => {
+                HciStructState::Created => {
                     self.poll_is_dev_up()?;
-                    self.state = HciState::RunningPollDevUp
+                    self.struct_state = HciStructState::RunningPollDevUp
                 },
-                HciState::RunningPollDevUp => self.poll_is_dev_up()?,
+                HciStructState::RunningPollDevUp => self.poll_is_dev_up()?,
                 ref e => return Err(Error::Other(format!("Invalid state {:?}", e)))
             }
 
             thread::sleep(wait_time);
 
             if self.stop_pool {
-                self.state = HciState::Stopping;
+                self.struct_state = HciStructState::Stopping;
                 break;
             }
         }
@@ -366,6 +391,61 @@ impl<'a> Hci<'a> {
         Ok(())
     }
 
+    /// Enable scan.
+    fn set_scan_enabled(&mut self, enabled: bool, filter_duplicates: bool) -> Result<()> {
+        let mut cmd = BytesMut::with_capacity(6);
+
+        cmd.put_u8(HCI_COMMAND_PKT);
+        cmd.put_u16_le(LE_SET_SCAN_ENABLE_CMD as u16);
+
+        // Length
+        cmd.put_u8(0x02);
+
+        // enable: 0 -> disabled, 1 -> enabled
+        if enabled {
+            cmd.put_u8(0x01);
+        } else {
+            cmd.put_u8(0x00);
+        }
+
+        // duplicates: 0 -> duplicates, 1 -> non duplicates
+        if enabled {
+            cmd.put_u8(0x01);
+        } else {
+            cmd.put_u8(0x00);
+        }
+
+        // TODO log debug('set scan enabled - writing: ' + cmd.toString('hex'));
+
+        self.socket.write(&cmd)?;
+
+        Ok(())
+    }
+
+    /// Set scan.
+    fn set_scan_parameters(&mut self) -> Result<()> {
+        let mut cmd = BytesMut::with_capacity(11);
+
+        cmd.put_u8(HCI_COMMAND_PKT);
+        cmd.put_u16_le(LE_SET_SCAN_PARAMETERS_CMD as u16);
+
+        // Length
+        cmd.put_u8(0x07);
+
+        // data
+        cmd.put_u8(0x01); // type: 0 -> passive, 1 -> active
+        cmd.put_u16_le(0x0010); // internal, ms * 1.6
+        cmd.put_u16_le(0x0010); // window, ms * 1.6
+        cmd.put_u8(0x00); // own address type: 0 -> public, 1 -> random
+        cmd.put_u8(0x00); // filter: 0 -> all event types
+
+        // TODO log debug('set scan parameters - writing: ' + cmd.toString('hex'));
+
+        self.socket.write(&cmd)?;
+
+        Ok(())
+    }
+
     /// Manage response from bluetooth.
     fn on_socket_data(&mut self, data: &mut Cursor<Bytes>) -> Result<()> {
         // TODO log debug('onSocketData: ' + data.toString('hex'));
@@ -491,32 +571,34 @@ impl<'a> Hci<'a> {
                     println!("process_cmd_complete_event: READ_LE_HOST_SUPPORTED_CMD -> le: {:?}, simul: {:?}", le, simul);
                 }
             }
-            READ_LOCAL_VERSION_CMD => {},
+            READ_LOCAL_VERSION_CMD => {
+                let hci_ver = result.get_u8();
+                let hci_rev = result.get_u16_le();
+                let lmp_ver = result.get_u8();
+                let manufacturer = result.get_u16_le();
+                let lmp_sub_ver = result.get_u16_le();
+
+                if hci_ver < 0x06 {
+                    self.state = HciState::Unsupported;
+                    self.callback.state_change(self.state.clone());
+                } else if self.state != HciState::PoweredOn {
+                    // TODO catch error
+                    self.set_scan_enabled(false, true);
+                    self.set_scan_parameters();
+                }
+
+                self.callback.read_local_version(hci_ver, hci_rev, lmp_ver, manufacturer, lmp_sub_ver);
+            },
             READ_BD_ADDR_CMD=> {},
             LE_SET_SCAN_PARAMETERS_CMD => {},
             READ_RSSI_CMD => {},
             e => {
                 // TODO send error to caller
                 println!("Unknown cmd complete event from bluetooth: {}", e)
-            }
+            },
         }
 /*
 
-  } else if (cmd === READ_LOCAL_VERSION_CMD) {
-    var hciVer = result.readUInt8(0);
-    var hciRev = result.readUInt16LE(1);
-    var lmpVer = result.readInt8(3);
-    var manufacturer = result.readUInt16LE(4);
-    var lmpSubVer = result.readUInt16LE(6);
-
-    if (hciVer < 0x06) {
-      this.emit('stateChange', 'unsupported');
-    } else if (this._state !== 'poweredOn') {
-      this.setScanEnabled(false, true);
-      this.setScanParameters();
-    }
-
-    this.emit('readLocalVersion', hciVer, hciRev, lmpVer, manufacturer, lmpSubVer);
   } else if (cmd === READ_BD_ADDR_CMD) {
     this.addressType = 'public';
     this.address = result.toString('hex').match(/.{1,2}/g).reverse().join(':');
