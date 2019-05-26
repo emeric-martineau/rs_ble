@@ -5,7 +5,7 @@ pub mod hci;
 pub mod debug;
 
 use std::{thread, time};
-use std::io::Cursor;
+use std::io::{Cursor, Read};
 
 use self::hci::{BluetoothHciSocket};
 use self::hci::error::{Result, Error};
@@ -30,6 +30,14 @@ pub enum HciState {
     PoweredOn,
     Unauthorized,
     Unsupported
+}
+
+/// State of Hci interface.
+#[derive(Debug, Clone, PartialEq)]
+pub enum BtLeAddressType {
+    Public,
+    Random,
+    Unknown
 }
 
 const HCI_COMMAND_PKT: u8 = 0x01;
@@ -74,7 +82,8 @@ const HCI_VERSION_6: u8 = 0x06;
 pub trait HciCallback {
     /// Call when change state.
     fn state_change(&self, state: HciState);
-    fn address_change(&self);
+    /// Address of adaptor.
+    fn address_change(&self, address: String);
     fn le_conn_complete(&self);
     fn le_conn_update_complete(&self);
     fn rssi_read(&self);
@@ -133,7 +142,11 @@ pub struct Hci<'a> {
     /// State of Hci
     state: HciState,
     /// Logger.
-    logger: Option<&'a HciLogger>
+    logger: Option<&'a HciLogger>,
+    /// BT LE address type.
+    address_type: BtLeAddressType,
+    /// Current BT address.
+    address: String
 }
 
 impl<'a> Hci<'a> {
@@ -142,6 +155,7 @@ impl<'a> Hci<'a> {
         Hci::new_with_logger(dev_id, is_hci_channel_user, callback, None)
     }
 
+    /// Create Hci interface with logger.
     pub fn new_with_logger(dev_id: Option<u16>, is_hci_channel_user: bool, callback: &'a HciCallback, logger: Option<&'a HciLogger>) -> Result<Self> {
         let socket;
         let hci;
@@ -159,7 +173,9 @@ impl<'a> Hci<'a> {
                 struct_state: HciStructState::CreatedHciChannelUser,
                 callback,
                 state: HciState::PoweredOff,
-                logger
+                logger,
+                address_type: BtLeAddressType::Unknown,
+                address: String::new()
             };
         } else {
             match BluetoothHciSocket::bind_raw(dev_id) {
@@ -174,7 +190,9 @@ impl<'a> Hci<'a> {
                 struct_state: HciStructState::Created,
                 callback,
                 state: HciState::PoweredOff,
-                logger
+                logger,
+                address_type: BtLeAddressType::Unknown,
+                address: String::new()
             };
         }
 
@@ -186,13 +204,14 @@ impl<'a> Hci<'a> {
         self.state.clone()
     }
 
-    /// Print debug
-    pub fn debug(&mut self, expr: &str) {
-        if let Some(log) = self.logger {
-            if log.is_debug_enable() {
-                log.debug(expr);
-            }
-        }
+    /// Address type.
+    pub fn address_type(&mut self) -> BtLeAddressType {
+        self.address_type.clone()
+    }
+
+    /// Address of adaptor.
+    pub fn address(&mut self) -> String {
+        self.address.clone()
     }
 
     /// Run init bluetooth adapter and poll data.
@@ -234,6 +253,15 @@ impl<'a> Hci<'a> {
         Ok(())
     }
 
+    /// Print debug.
+    fn debug(&mut self, expr: &str) {
+        if let Some(log) = self.logger {
+            if log.is_debug_enable() {
+                log.debug(expr);
+            }
+        }
+    }
+
     /// Reset bluetooth adapter.
     fn reset(&mut self) -> Result<()> {
         let mut cmd = BytesMut::with_capacity(4);
@@ -268,7 +296,8 @@ impl<'a> Hci<'a> {
                 self.read_le_host_supported()?;
                 self.read_bd_addr()?;
             }
-        } else {
+        } else if self.state != HciState::PoweredOff {
+            self.state = HciState::PoweredOff;
             self.callback.state_change(HciState::PoweredOff)
         }
 
@@ -481,7 +510,7 @@ impl<'a> Hci<'a> {
 
     /// Manage response from bluetooth.
     fn on_socket_data(&mut self, data: &mut Cursor<Bytes>) -> Result<()> {
-        self.debug(&format!("on_socket_data: {:?}", data));
+        self.debug(&format!("on_socket_data: {:?}", HciSocketDebug(data.get_ref())));
 
         // data[0]
         let event_type = data.get_u8();
@@ -542,7 +571,7 @@ impl<'a> Hci<'a> {
         let result = &data.get_ref()[position..];
         let mut result = Cursor::new(Bytes::from(result));
 
-        self.debug(&format!("EVT_CMD_COMPLETE -> cmd: 0x{:02x}, status: 0x{:02x}, result: {:?}", cmd, status, result));
+        self.debug(&format!("EVT_CMD_COMPLETE -> cmd: 0x{:02x}, status: 0x{:02x}, result: {:?}", cmd, status, HciSocketDebug(result.get_ref())));
 
         self.process_cmd_complete_event(cmd, status, &mut result);
     }
@@ -620,13 +649,36 @@ impl<'a> Hci<'a> {
         self.callback.read_local_version(hci_ver, hci_rev, lmp_ver, manufacturer, lmp_sub_ver);
     }
 
+    /// Read address command.
+    fn read_bd_addr_cmd(&mut self, result: &mut Cursor<Bytes>) {
+        self.address_type = BtLeAddressType::Public;
+
+        // TODO
+        println!("NOT IMPLEMENTED self.address = result...");
+
+        let a1 = result.get_u8();
+        let a2 = result.get_u8();
+        let a3 = result.get_u8();
+        let a4 = result.get_u8();
+        let a5 = result.get_u8();
+        let a6 = result.get_u8();
+
+        let addr = String::from(format!("{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}", a6, a5, a4, a3, a2, a1));
+
+        self.address = addr.clone();
+
+        self.debug(&format!("address = {}", &addr));
+
+        self.callback.address_change(addr)
+    }
+
     /// Call when receive from BT adapter cmd complete.
     fn process_cmd_complete_event(&mut self, cmd: u16, status: u8, result: &mut Cursor<Bytes>) {
         match cmd {
             RESET_CMD => self.reset_cmd(),
             READ_LE_HOST_SUPPORTED_CMD => self.read_le_host_supported_cmd(status, result),
             READ_LOCAL_VERSION_CMD => self.read_local_version_cmd(result),
-            READ_BD_ADDR_CMD=> {},
+            READ_BD_ADDR_CMD=> self.read_bd_addr_cmd(result),
             LE_SET_SCAN_PARAMETERS_CMD => {},
             READ_RSSI_CMD => {},
             e => {
@@ -635,14 +687,6 @@ impl<'a> Hci<'a> {
             },
         }
 /*
-
-  } else if (cmd === READ_BD_ADDR_CMD) {
-    this.addressType = 'public';
-    this.address = result.toString('hex').match(/.{1,2}/g).reverse().join(':');
-
-    debug('address = ' + this.address);
-
-    this.emit('addressChange', this.address);
   } else if (cmd === LE_SET_SCAN_PARAMETERS_CMD) {
     this.emit('stateChange', 'poweredOn');
 

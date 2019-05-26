@@ -1,6 +1,6 @@
 extern crate rs_ble;
 
-use rs_ble::hci_socket::{Hci, HciCallback, HciState};
+use rs_ble::hci_socket::{Hci, HciCallback, HciState, HciLogger};
 
 struct Callback {}
 
@@ -8,7 +8,10 @@ impl HciCallback for Callback {
     fn state_change(&self, state: HciState) {
         println!("State change: {:?}", state);
     }
-    fn address_change(&self) {}
+    fn address_change(&self, address: String) {
+        println!("Address change: {:?}", address);
+    }
+
     fn le_conn_complete(&self) {}
     fn le_conn_update_complete(&self) {}
     fn rssi_read(&self) {}
@@ -30,10 +33,23 @@ impl HciCallback for Callback {
     }
 }
 
+pub struct MyLogger;
+
+impl HciLogger for MyLogger {
+    fn is_debug_enable(&self) -> bool {
+        true
+    }
+
+    fn debug(&self, expr: &str) {
+        println!("{}", expr);
+    }
+}
+
 fn main() {
     let callback = Callback {};
+    let log = MyLogger {};
 
-    match Hci::new(None, false, &callback) {
+    match Hci::new_with_logger(None, false, &callback, Some(&log)) {
         Ok(mut hci) => println!("{:?}", hci.init()),
         Err(e) => println!("Fail {:?}", e)
     }
