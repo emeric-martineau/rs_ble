@@ -14,7 +14,9 @@ impl HciCallback for Callback {
 
     fn le_conn_complete(&self) {}
     fn le_conn_update_complete(&self) {}
-    fn rssi_read(&self) {}
+    fn rssi_read(&self, handle: u16, rssi: i8) {
+        println!("Rssi read, handle: {}, rssi: {}", handle, rssi);
+    }
 
     fn disconn_complete(&self, handle: u16, reason: u8) {
         println!("EVT_DISCONN_COMPLETE");
@@ -28,8 +30,16 @@ impl HciCallback for Callback {
 
     fn acl_data_pkt(&self) {}
 
-    fn read_local_version(&self, hci_ver: u8, hci_rev: u16, lmp_ver: u8, manufacturer: u16, lmp_sub_ver: u16) {
+    fn read_local_version(&self, hci_ver: u8, hci_rev: u16, lmp_ver: i8, manufacturer: u16, lmp_sub_ver: u16) {
         println!("read local version: hci_ver: {:?} hci_rev: {:?} lmp_ver: {:?} manufacturer: {:?} lmp_sub_ver: {:?}", hci_ver, hci_rev, lmp_ver, manufacturer, lmp_sub_ver)
+    }
+
+    fn le_scan_parameters_set(&self) {
+        println!("le_scan_parameters_set");
+    }
+
+    fn le_scan_enable_set(&self, state: HciState) {
+        println!("le_scan_enable_set: {:?}", state);
     }
 }
 

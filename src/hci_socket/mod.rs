@@ -5,7 +5,7 @@ pub mod hci;
 pub mod debug;
 
 use std::{thread, time};
-use std::io::{Cursor, Read};
+use std::io::{Cursor};
 
 use self::hci::{BluetoothHciSocket};
 use self::hci::error::{Result, Error};
@@ -86,14 +86,19 @@ pub trait HciCallback {
     fn address_change(&self, address: String);
     fn le_conn_complete(&self);
     fn le_conn_update_complete(&self);
-    fn rssi_read(&self);
+    /// Rssi.
+    fn rssi_read(&self, handle: u16, rssi: i8);
     /// Call when BT peripheral disconnect.
     fn disconn_complete(&self, handle: u16, reason: u8);
     /// Call when BT encrypt change.
     fn encrypt_change(&self, handle: u16, encrypt: u8);
     fn acl_data_pkt(&self);
     /// Call when get version.
-    fn read_local_version(&self, hci_ver: u8, hci_rev: u16, lmp_ver: u8, manufacturer: u16, lmp_sub_ver: u16);
+    fn read_local_version(&self, hci_ver: u8, hci_rev: u16, lmp_ver: i8, manufacturer: u16, lmp_sub_ver: u16);
+    /// When receive LE scan parameters.
+    fn le_scan_parameters_set(&self);
+    /// When receive LE scan enable.
+    fn le_scan_enable_set(&self, state: HciState);
 }
 
 pub trait HciLogger {
@@ -556,7 +561,8 @@ impl<'a> Hci<'a> {
         let handle = data.get_u16_le();
         let reason = data.get_u8();
 
-        self.debug(&format!("EVT_DISCONN_COMPLETE -> handle: 0x{:02x}, reason: 0x{:02x}", handle, reason));
+        self.debug(&format!("\t\thandle = {}", handle));
+        self.debug(&format!("\t\treason = {}", reason));
 
         self.callback.disconn_complete(handle, reason);
     }
@@ -571,7 +577,9 @@ impl<'a> Hci<'a> {
         let result = &data.get_ref()[position..];
         let mut result = Cursor::new(Bytes::from(result));
 
-        self.debug(&format!("EVT_CMD_COMPLETE -> cmd: 0x{:02x}, status: 0x{:02x}, result: {:?}", cmd, status, HciSocketDebug(result.get_ref())));
+        self.debug(&format!("\t\tcmd = {}", cmd));
+        self.debug(&format!("\t\tstatus = {}", status));
+        self.debug(&format!("\t\tresult = {:?}", HciSocketDebug(result.get_ref())));
 
         self.process_cmd_complete_event(cmd, status, &mut result);
     }
@@ -582,7 +590,8 @@ impl<'a> Hci<'a> {
         let handle = data.get_u16_le();
         let encrypt = data.get_u8();
 
-        self.debug(&format!("EVT_ENCRYPT_CHANGE -> handle: 0x{:02x}, encrypt: 0x{:02x}", handle, encrypt));
+        self.debug(&format!("\t\thandle = {}", handle));
+        self.debug(&format!("\t\tencrypt = {}", encrypt));
 
         self.callback.encrypt_change(handle, encrypt);
     }
@@ -593,8 +602,10 @@ impl<'a> Hci<'a> {
         data.set_position(5);
         let cmd = data.get_u16_le();
 
-        self.debug(&format!("EVT_CMD_COMPLETE -> cmd: 0x{:02x}, status: 0x{:02x}", cmd, status));
+        self.debug(&format!("\t\tcmd = {}", cmd));
+        self.debug(&format!("\t\tstatus = {}", status));
 
+        println!("TODO: manage_hci_event_pkt_cmd_status");
         // TODO this.processCmdStatusEvent(cmd, status);
     }
 
@@ -606,6 +617,11 @@ impl<'a> Hci<'a> {
         let position = data.position() as usize;
         let le_meta_event_data = &data.get_ref()[position..];
 
+        self.debug(&format!("\t\tLE meta event type = {}", le_meta_event_type));
+        self.debug(&format!("\t\tLE meta event status = {}", le_meta_event_status));
+        self.debug(&format!("\t\tLE meta event data = {:?}", HciSocketDebug(le_meta_event_data)));
+
+        println!("TODO: manage_hci_event_pkt_le_meta");
         // TODO this.processLeMetaEvent(leMetaEventType, leMetaEventStatus, leMetaEventData);
     }
 
@@ -633,7 +649,7 @@ impl<'a> Hci<'a> {
     fn read_local_version_cmd(&mut self, result: &mut Cursor<Bytes>) {
         let hci_ver = result.get_u8();
         let hci_rev = result.get_u16_le();
-        let lmp_ver = result.get_u8();
+        let lmp_ver = result.get_i8();
         let manufacturer = result.get_u16_le();
         let lmp_sub_ver = result.get_u16_le();
 
@@ -653,9 +669,6 @@ impl<'a> Hci<'a> {
     fn read_bd_addr_cmd(&mut self, result: &mut Cursor<Bytes>) {
         self.address_type = BtLeAddressType::Public;
 
-        // TODO
-        println!("NOT IMPLEMENTED self.address = result...");
-
         let a1 = result.get_u8();
         let a2 = result.get_u8();
         let a3 = result.get_u8();
@@ -672,6 +685,16 @@ impl<'a> Hci<'a> {
         self.callback.address_change(addr)
     }
 
+    fn le_set_scan_enable_cmd(&mut self, result: &mut Cursor<Bytes>) {
+        let handle = result.get_u16_le();
+        let rssi = result.get_i8();
+
+        self.debug(&format!("\t\t\thandle = {}", &handle));
+        self.debug(&format!("\t\t\trssi = {}", &rssi));
+
+        self.callback.rssi_read(handle, rssi);
+    }
+
     /// Call when receive from BT adapter cmd complete.
     fn process_cmd_complete_event(&mut self, cmd: u16, status: u8, result: &mut Cursor<Bytes>) {
         match cmd {
@@ -679,29 +702,17 @@ impl<'a> Hci<'a> {
             READ_LE_HOST_SUPPORTED_CMD => self.read_le_host_supported_cmd(status, result),
             READ_LOCAL_VERSION_CMD => self.read_local_version_cmd(result),
             READ_BD_ADDR_CMD=> self.read_bd_addr_cmd(result),
-            LE_SET_SCAN_PARAMETERS_CMD => {},
+            LE_SET_SCAN_PARAMETERS_CMD => {
+                self.callback.state_change(HciState::PoweredOn);
+
+                self.callback.le_scan_parameters_set();
+            },
+            LE_SET_SCAN_ENABLE_CMD=> self.callback.le_scan_enable_set(self.state.clone()),
             READ_RSSI_CMD => {},
             e => {
                 // TODO send error to caller
                 println!("Unknown cmd complete event from bluetooth: 0x{:02x}", e)
             },
         }
-/*
-  } else if (cmd === LE_SET_SCAN_PARAMETERS_CMD) {
-    this.emit('stateChange', 'poweredOn');
-
-    this.emit('leScanParametersSet');
-  } else if (cmd === LE_SET_SCAN_ENABLE_CMD) {
-    this.emit('leScanEnableSet', status);
-  } else if (cmd === READ_RSSI_CMD) {
-    var handle = result.readUInt16LE(0);
-    var rssi = result.readInt8(2);
-
-    debug('\t\t\thandle = ' + handle);
-    debug('\t\t\trssi = ' + rssi);
-
-    this.emit('rssiRead', handle, rssi);
-  }
-*/
     }
 }
