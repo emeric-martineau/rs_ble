@@ -685,7 +685,7 @@ impl<'a> Hci<'a> {
         self.callback.address_change(addr)
     }
 
-    fn le_set_scan_enable_cmd(&mut self, result: &mut Cursor<Bytes>) {
+    fn read_rssi_cmd(&mut self, result: &mut Cursor<Bytes>) {
         let handle = result.get_u16_le();
         let rssi = result.get_i8();
 
@@ -708,7 +708,7 @@ impl<'a> Hci<'a> {
                 self.callback.le_scan_parameters_set();
             },
             LE_SET_SCAN_ENABLE_CMD=> self.callback.le_scan_enable_set(self.state.clone()),
-            READ_RSSI_CMD => {},
+            READ_RSSI_CMD => self.read_rssi_cmd(result),
             e => {
                 // TODO send error to caller
                 println!("Unknown cmd complete event from bluetooth: 0x{:02x}", e)
