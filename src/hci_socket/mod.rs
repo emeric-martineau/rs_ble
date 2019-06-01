@@ -64,6 +64,7 @@ const OCF_READ_BD_ADDR: u16 = 0x0009;
 const OCF_READ_RSSI: u16 = 0x0005;
 const OCF_LE_SET_SCAN_PARAMETERS: u16 = 0x000b;
 const OCF_LE_SET_SCAN_ENABLE: u16 = 0x000c;
+const OCF_LE_CREATE_CONN: u16 = 0x000d;
 
 const SET_EVENT_MASK_CMD: u16 = OCF_SET_EVENT_MASK | OGF_HOST_CTL << 10;
 const READ_LOCAL_VERSION_CMD: u16 = OCF_READ_LOCAL_VERSION | (OGF_INFO_PARAM << 10);
@@ -72,9 +73,10 @@ const READ_LE_HOST_SUPPORTED_CMD: u16 = OCF_READ_LE_HOST_SUPPORTED | OGF_HOST_CT
 const READ_BD_ADDR_CMD: u16 = OCF_READ_BD_ADDR | (OGF_INFO_PARAM << 10);
 const RESET_CMD:u16 = OCF_RESET | OGF_HOST_CTL << 10;
 const READ_RSSI_CMD: u16 = OCF_READ_RSSI | OGF_STATUS_PARAM << 10;
-const LE_SET_SCAN_ENABLE_CMD: u16 = OCF_LE_SET_SCAN_ENABLE | OGF_LE_CTL << 10;
 
+const LE_SET_SCAN_ENABLE_CMD: u16 = OCF_LE_SET_SCAN_ENABLE | OGF_LE_CTL << 10;
 const LE_SET_SCAN_PARAMETERS_CMD: u16 = OCF_LE_SET_SCAN_PARAMETERS | OGF_LE_CTL << 10;
+const LE_CREATE_CONN_CMD: u16 = OCF_LE_CREATE_CONN | OGF_LE_CTL << 10;
 
 const HCI_VERSION_6: u8 = 0x06;
 
@@ -84,7 +86,8 @@ pub trait HciCallback {
     fn state_change(&self, state: HciState);
     /// Address of adaptor.
     fn address_change(&self, address: String);
-    fn le_conn_complete(&self);
+    /// Status on connection.
+    fn le_conn_complete(&self, status: u8);
     fn le_conn_update_complete(&self);
     /// Rssi.
     fn rssi_read(&self, handle: u16, rssi: i8);
@@ -594,8 +597,16 @@ impl<'a> Hci<'a> {
         self.debug(&format!("\t\tcmd = {}", cmd));
         self.debug(&format!("\t\tstatus = {}", status));
 
-        println!("TODO: manage_hci_event_pkt_cmd_status");
-        // TODO this.processCmdStatusEvent(cmd, status);
+        self.process_cmd_status_event(cmd, status);
+    }
+
+    /// Process status event
+    fn process_cmd_status_event(&mut self, cmd: u16, status: u8) {
+        if cmd == LE_CREATE_CONN_CMD {
+            if status != 0 {
+                self.callback.le_conn_complete(status);
+            }
+        }
     }
 
     /// Manage event le meta.

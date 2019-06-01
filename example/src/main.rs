@@ -8,11 +8,15 @@ impl HciCallback for Callback {
     fn state_change(&self, state: HciState) {
         println!("State change: {:?}", state);
     }
+
     fn address_change(&self, address: String) {
         println!("Address change: {:?}", address);
     }
 
-    fn le_conn_complete(&self) {}
+    fn le_conn_complete(&self, status: u8) {
+        println!("Status complete: {}", status);
+    }
+
     fn le_conn_update_complete(&self) {}
     fn rssi_read(&self, handle: u16, rssi: i8) {
         println!("Rssi read, handle: {}, rssi: {}", handle, rssi);
@@ -40,6 +44,10 @@ impl HciCallback for Callback {
 
     fn le_scan_enable_set(&self, state: HciState) {
         println!("le_scan_enable_set: {:?}", state);
+    }
+
+    fn error(&self, msg: String) {
+        eprintln!("{}", msg);
     }
 }
 
