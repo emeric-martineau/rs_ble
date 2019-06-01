@@ -110,7 +110,8 @@ pub trait HciCallback {
     fn address_change(&self, address: String);
     /// Status on connection.
     fn le_conn_complete(&self, status: u8, data: Option<BtLeConnectionComplete>);
-    fn le_conn_update_complete(&self);
+    /// When update connection complete.
+    fn le_conn_update_complete(&self, status: u8, handle: u16, interval: f64, latency: u16, supervision_timeout: u16);
     /// Rssi.
     fn rssi_read(&self, handle: u16, rssi: i8);
     /// Call when BT peripheral disconnect.
@@ -647,8 +648,8 @@ impl<'a> Hci<'a> {
     /// Process le meta event.
     fn process_le_meta_event(&mut self, event_type: u8, status: u8, data: &mut Cursor<Bytes>) {
         match event_type {
-            EVT_LE_CONN_COMPLETE => println!("TODO this.processLeConnComplete(status, data);"),
-            EVT_LE_ADVERTISING_REPORT=> println!("TODO this.processLeAdvertisingReport(status, data)"),
+            EVT_LE_CONN_COMPLETE => self.process_le_conn_complete(status, data),
+            EVT_LE_ADVERTISING_REPORT=> self.process_le_advertising_report(status, data),
             EVT_LE_CONN_UPDATE_COMPLETE => println!("TODO this.processLeConnUpdateComplete(status, data);"),
             e => self.callback.error(format!("Unknown le meta event from bluetooth: {}", e))
         }
@@ -693,42 +694,49 @@ impl<'a> Hci<'a> {
 
         self.callback.le_conn_complete(status, Some(result));
     }
-/*
-Hci.prototype.processLeAdvertisingReport = function(count, data) {
-  for (var i = 0; i < count; i++) {
-    var type = data.readUInt8(0);
-    var addressType = data.readUInt8(1) === 0x01 ? 'random' : 'public';
-    var address = data.slice(2, 8).toString('hex').match(/.{1,2}/g).reverse().join(':');
-    var eirLength = data.readUInt8(8);
-    var eir = data.slice(9, eirLength + 9);
-    var rssi = data.readInt8(eirLength + 9);
 
-    debug('\t\t\ttype = ' + type);
-    debug('\t\t\taddress = ' + address);
-    debug('\t\t\taddress type = ' + addressType);
-    debug('\t\t\teir = ' + eir.toString('hex'));
-    debug('\t\t\trssi = ' + rssi);
+    fn process_le_advertising_report(&mut self, count: u8, data: &mut Cursor<Bytes>) {
+        // TODO
+        println!("TODO process_le_advertising_report()");
 
-    this.emit('leAdvertisingReport', 0, type, address, addressType, eir, rssi);
+        /*
+        Hci.prototype.processLeAdvertisingReport = function(count, data) {
+          for (var i = 0; i < count; i++) {
+            var type = data.readUInt8(0);
+            var addressType = data.readUInt8(1) === 0x01 ? 'random' : 'public';
+            var address = data.slice(2, 8).toString('hex').match(/.{1,2}/g).reverse().join(':');
+            var eirLength = data.readUInt8(8);
+            var eir = data.slice(9, eirLength + 9);
+            var rssi = data.readInt8(eirLength + 9);
 
-    data = data.slice(eirLength + 10);
-  }
-};
+            debug('\t\t\ttype = ' + type);
+            debug('\t\t\taddress = ' + address);
+            debug('\t\t\taddress type = ' + addressType);
+            debug('\t\t\teir = ' + eir.toString('hex'));
+            debug('\t\t\trssi = ' + rssi);
 
-Hci.prototype.processLeConnUpdateComplete = function(status, data) {
-  var handle = data.readUInt16LE(0);
-  var interval = data.readUInt16LE(2) * 1.25;
-  var latency = data.readUInt16LE(4); // TODO: multiplier?
-  var supervisionTimeout = data.readUInt16LE(6) * 10;
+            this.emit('leAdvertisingReport', 0, type, address, addressType, eir, rssi);
 
-  debug('\t\t\thandle = ' + handle);
-  debug('\t\t\tinterval = ' + interval);
-  debug('\t\t\tlatency = ' + latency);
-  debug('\t\t\tsupervision timeout = ' + supervisionTimeout);
+            data = data.slice(eirLength + 10);
+          }
+        };
+        */
+    }
 
-  this.emit('leConnUpdateComplete', status, handle, interval, latency, supervisionTimeout);
-};
-*/
+    /// Process le connection update complete.
+    fn process_le_conn_update_complete(&mut self, status: u8, data: &mut Cursor<Bytes>) {
+        let handle = data.get_u16_le();
+        let interval = (data.get_u16_le() as f64) * 1.25;
+        let latency = data.get_u16_le(); // TODO: multiplier?
+        let supervision_timeout = data.get_u16_le() * 10;
+
+        self.debug(&format!("\t\t\thandle = {}", handle));
+        self.debug(&format!("\t\t\tinterval = {}", interval));
+        self.debug(&format!("\t\t\tlatency = {}", latency));
+        self.debug(&format!("\t\t\tsupervision timeout = {}", supervision_timeout));
+
+        self.callback.le_conn_update_complete(status, handle, interval, latency, supervision_timeout);
+    }
 
     /// Reset adaptor.
     fn reset_cmd(&mut self) {

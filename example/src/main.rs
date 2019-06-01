@@ -20,7 +20,10 @@ impl HciCallback for Callback {
         };
     }
 
-    fn le_conn_update_complete(&self) {}
+    fn le_conn_update_complete(&self, status: u8, handle: u16, interval: f64, latency: u16, supervision_timeout: u16) {
+        println!("Connection update status: {}, handle: {}, interval: {}, latency: {}, supervision_timeout: {}", status, handle, interval, latency, supervision_timeout)
+    }
+
     fn rssi_read(&self, handle: u16, rssi: i8) {
         println!("Rssi read, handle: {}, rssi: {}", handle, rssi);
     }
