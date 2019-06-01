@@ -79,6 +79,28 @@ const LE_SET_SCAN_PARAMETERS_CMD: u16 = OCF_LE_SET_SCAN_PARAMETERS | OGF_LE_CTL 
 const LE_CREATE_CONN_CMD: u16 = OCF_LE_CREATE_CONN | OGF_LE_CTL << 10;
 
 const HCI_VERSION_6: u8 = 0x06;
+const HCI_ADDRESS_TYPE_RANDOM: u8 = 0x01;
+
+#[derive(Debug, Clone)]
+/// Data of callback for method le_conn_complete().
+pub struct BtLeConnectionComplete {
+    /// Handle.
+    handle: u16,
+    /// Role.
+    role: u8,
+    /// Address type (public, random).
+    address_type: BtLeAddressType,
+    /// Mac address
+    address: String,
+    /// Interval of what ?
+    interval: f64,
+    /// Latency.
+    latency: u16,
+    /// Ok if you want.
+    supervision_timeout: u16,
+    /// hum...
+    master_clock_accuracy: u8
+}
 
 /// Callback when receive data.
 pub trait HciCallback {
@@ -87,7 +109,7 @@ pub trait HciCallback {
     /// Address of adaptor.
     fn address_change(&self, address: String);
     /// Status on connection.
-    fn le_conn_complete(&self, status: u8);
+    fn le_conn_complete(&self, status: u8, data: Option<BtLeConnectionComplete>);
     fn le_conn_update_complete(&self);
     /// Rssi.
     fn rssi_read(&self, handle: u16, rssi: i8);
@@ -520,9 +542,7 @@ impl<'a> Hci<'a> {
             HCI_EVENT_PKT => self.manage_hci_event_pkt(data),
             HCI_ACLDATA_PKT => println!("HCI_ACLDATA_PKT"), // TODO
             HCI_COMMAND_PKT => println!("HCI_COMMAND_PKT"), // TODO
-            e => {
-                self.callback.error(format!("Unknown event type from bluetooth: {}", e));
-            }
+            e => self.callback.error(format!("Unknown event type from bluetooth: {}", e))
         }
 
         Ok(())
@@ -541,9 +561,7 @@ impl<'a> Hci<'a> {
             EVT_CMD_COMPLETE=> self.manage_hci_event_pkt_cmd(data),
             EVT_CMD_STATUS=>self.manage_hci_event_pkt_cmd_status(data),
             EVT_LE_META_EVENT=> self.manage_hci_event_pkt_le_meta(data),
-            e => {
-                self.callback.error(format!("Unknown event sub-type from bluetooth: {}", e));
-            }
+            e => self.callback.error(format!("Unknown event sub-type from bluetooth: {}", e))
         }
     }
 
@@ -604,7 +622,7 @@ impl<'a> Hci<'a> {
     fn process_cmd_status_event(&mut self, cmd: u16, status: u8) {
         if cmd == LE_CREATE_CONN_CMD {
             if status != 0 {
-                self.callback.le_conn_complete(status);
+                self.callback.le_conn_complete(status, None);
             }
         }
     }
@@ -621,9 +639,96 @@ impl<'a> Hci<'a> {
         self.debug(&format!("\t\tLE meta event status = {}", le_meta_event_status));
         self.debug(&format!("\t\tLE meta event data = {:?}", HciSocketDebug(le_meta_event_data)));
 
-        println!("TODO: manage_hci_event_pkt_le_meta");
-        // TODO this.processLeMetaEvent(leMetaEventType, leMetaEventStatus, leMetaEventData);
+        let mut le_meta_event_data = Cursor::new(Bytes::from(le_meta_event_data));
+
+        self.process_le_meta_event(le_meta_event_type, le_meta_event_status, &mut le_meta_event_data);
     }
+
+    /// Process le meta event.
+    fn process_le_meta_event(&mut self, event_type: u8, status: u8, data: &mut Cursor<Bytes>) {
+        match event_type {
+            EVT_LE_CONN_COMPLETE => println!("TODO this.processLeConnComplete(status, data);"),
+            EVT_LE_ADVERTISING_REPORT=> println!("TODO this.processLeAdvertisingReport(status, data)"),
+            EVT_LE_CONN_UPDATE_COMPLETE => println!("TODO this.processLeConnUpdateComplete(status, data);"),
+            e => self.callback.error(format!("Unknown le meta event from bluetooth: {}", e))
+        }
+    }
+
+    /// Process LE connection complete.
+    fn process_le_conn_complete(&mut self, status: u8, data: &mut Cursor<Bytes>) {
+        let handle = data.get_u16_le();
+        let role = data.get_u8();
+
+        let address_type = match data.get_u8() {
+            HCI_ADDRESS_TYPE_RANDOM=> BtLeAddressType::Random,
+            _ => BtLeAddressType::Public
+        };
+
+        let address = self.read_mac_address(data);
+
+        let interval = (data.get_u16_le() as f64)* 1.25;
+        let latency = data.get_u16_le(); // TODO: multiplier?
+        let supervision_timeout = data.get_u16_le() * 10;
+        let master_clock_accuracy = data.get_u8(); // TODO: multiplier?
+
+        self.debug(&format!("\t\t\thandle = {}", handle));
+        self.debug(&format!("\t\t\trole = {}", role));
+        self.debug(&format!("\t\t\taddress type = {:?}", address_type));
+        self.debug(&format!("\t\t\taddress = {}", address));
+        self.debug(&format!("\t\t\tinterval = {}", interval));
+        self.debug(&format!("\t\t\tlatency = {}", latency));
+        self.debug(&format!("\t\t\tsupervision timeout = {}", supervision_timeout));
+        self.debug(&format!("\t\t\tmaster clock accuracy = {}", master_clock_accuracy));
+
+        let result = BtLeConnectionComplete {
+            handle,
+            role,
+            address_type,
+            address,
+            interval,
+            latency,
+            supervision_timeout,
+            master_clock_accuracy
+        };
+
+        self.callback.le_conn_complete(status, Some(result));
+    }
+/*
+Hci.prototype.processLeAdvertisingReport = function(count, data) {
+  for (var i = 0; i < count; i++) {
+    var type = data.readUInt8(0);
+    var addressType = data.readUInt8(1) === 0x01 ? 'random' : 'public';
+    var address = data.slice(2, 8).toString('hex').match(/.{1,2}/g).reverse().join(':');
+    var eirLength = data.readUInt8(8);
+    var eir = data.slice(9, eirLength + 9);
+    var rssi = data.readInt8(eirLength + 9);
+
+    debug('\t\t\ttype = ' + type);
+    debug('\t\t\taddress = ' + address);
+    debug('\t\t\taddress type = ' + addressType);
+    debug('\t\t\teir = ' + eir.toString('hex'));
+    debug('\t\t\trssi = ' + rssi);
+
+    this.emit('leAdvertisingReport', 0, type, address, addressType, eir, rssi);
+
+    data = data.slice(eirLength + 10);
+  }
+};
+
+Hci.prototype.processLeConnUpdateComplete = function(status, data) {
+  var handle = data.readUInt16LE(0);
+  var interval = data.readUInt16LE(2) * 1.25;
+  var latency = data.readUInt16LE(4); // TODO: multiplier?
+  var supervisionTimeout = data.readUInt16LE(6) * 10;
+
+  debug('\t\t\thandle = ' + handle);
+  debug('\t\t\tinterval = ' + interval);
+  debug('\t\t\tlatency = ' + latency);
+  debug('\t\t\tsupervision timeout = ' + supervisionTimeout);
+
+  this.emit('leConnUpdateComplete', status, handle, interval, latency, supervisionTimeout);
+};
+*/
 
     /// Reset adaptor.
     fn reset_cmd(&mut self) {
@@ -663,18 +768,23 @@ impl<'a> Hci<'a> {
         self.callback.read_local_version(hci_ver, hci_rev, lmp_ver, manufacturer, lmp_sub_ver);
     }
 
+    /// Read a MAC address in data.
+    fn read_mac_address(&mut self, data: &mut Cursor<Bytes>) -> String {
+        let a1 = data.get_u8();
+        let a2 = data.get_u8();
+        let a3 = data.get_u8();
+        let a4 = data.get_u8();
+        let a5 = data.get_u8();
+        let a6 = data.get_u8();
+
+        String::from(format!("{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}", a6, a5, a4, a3, a2, a1))
+    }
+
     /// Read address command.
     fn read_bd_addr_cmd(&mut self, result: &mut Cursor<Bytes>) {
         self.address_type = BtLeAddressType::Public;
 
-        let a1 = result.get_u8();
-        let a2 = result.get_u8();
-        let a3 = result.get_u8();
-        let a4 = result.get_u8();
-        let a5 = result.get_u8();
-        let a6 = result.get_u8();
-
-        let addr = String::from(format!("{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}", a6, a5, a4, a3, a2, a1));
+        let addr = self.read_mac_address(result);
 
         self.address = addr.clone();
 
@@ -707,9 +817,7 @@ impl<'a> Hci<'a> {
             },
             LE_SET_SCAN_ENABLE_CMD=> self.callback.le_scan_enable_set(self.state.clone()),
             READ_RSSI_CMD => self.read_rssi_cmd(result),
-            e => {
-                self.callback.error(format!("Unknown cmd complete event from bluetooth: {}", e));
-            },
+            e => self.callback.error(format!("Unknown cmd complete event from bluetooth: {}", e))
         }
     }
 }

@@ -1,6 +1,6 @@
 extern crate rs_ble;
 
-use rs_ble::hci_socket::{Hci, HciCallback, HciState, HciLogger};
+use rs_ble::hci_socket::{Hci, HciCallback, HciState, HciLogger, BtLeConnectionComplete};
 
 struct Callback {}
 
@@ -13,8 +13,11 @@ impl HciCallback for Callback {
         println!("Address change: {:?}", address);
     }
 
-    fn le_conn_complete(&self, status: u8) {
-        println!("Status complete: {}", status);
+    fn le_conn_complete(&self, status: u8, data: Option<BtLeConnectionComplete>) {
+        match data {
+            Some(a) =>  println!("Status complete: {} data: {:?}", status, a),
+            None =>println!("Status complete: {}", status)
+        };
     }
 
     fn le_conn_update_complete(&self) {}
