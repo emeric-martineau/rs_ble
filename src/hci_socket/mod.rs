@@ -99,6 +99,8 @@ pub trait HciCallback {
     fn le_scan_parameters_set(&self);
     /// When receive LE scan enable.
     fn le_scan_enable_set(&self, state: HciState);
+    /// On error.
+    fn error(&self, msg: String);
 }
 
 pub trait HciLogger {
@@ -236,7 +238,7 @@ impl<'a> Hci<'a> {
 
             match self.struct_state {
                 HciStructState::CreatedHciChannelUser => {
-                    self.reset()?;
+                    self.reset();
                     self.struct_state = HciStructState::Running
                 },
                 HciStructState::Created => {
@@ -267,8 +269,15 @@ impl<'a> Hci<'a> {
         }
     }
 
+    /// Write data on BT socket.
+    fn write(&mut self, cmd: &BytesMut) {
+        if let Err(err) = self.socket.write(&cmd) {
+            self.callback.error(format!("Error when write data: {:?}", err));
+        }
+    }
+
     /// Reset bluetooth adapter.
-    fn reset(&mut self) -> Result<()> {
+    fn reset(&mut self) {
         let mut cmd = BytesMut::with_capacity(4);
 
         cmd.put_u8(HCI_COMMAND_PKT);
@@ -277,9 +286,7 @@ impl<'a> Hci<'a> {
 
         self.debug(&format!("reset - writing: {:?}", HciSocketDebug(&cmd)));
 
-        self.socket.write(&cmd)?;
-
-        Ok(())
+        self.write(&cmd);
     }
 
     /// Check if device is up.
@@ -294,12 +301,12 @@ impl<'a> Hci<'a> {
         if self.is_dev_up != is_dev_up {
             if is_dev_up {
                 self.set_socket_filter()?;
-                self.set_event_mask()?;
-                self.set_le_event_mask()?;
-                self.read_local_version()?;
-                self.write_le_host_supported()?;
-                self.read_le_host_supported()?;
-                self.read_bd_addr()?;
+                self.set_event_mask();
+                self.set_le_event_mask();
+                self.read_local_version();
+                self.write_le_host_supported();
+                self.read_le_host_supported();
+                self.read_bd_addr();
             }
         } else if self.state != HciState::PoweredOff {
             self.state = HciState::PoweredOff;
@@ -337,7 +344,7 @@ impl<'a> Hci<'a> {
     }
 
     /// Set type event.
-    fn set_event_mask(&mut self) -> Result<()> {
+    fn set_event_mask(&mut self) {
         let mut cmd = BytesMut::with_capacity(12);
 
         cmd.put_u8(HCI_COMMAND_PKT);
@@ -358,13 +365,11 @@ impl<'a> Hci<'a> {
 
         self.debug(&format!("set event mask - writing: {:?}", HciSocketDebug(&cmd)));
 
-        self.socket.write(&cmd)?;
-
-        Ok(())
+        self.write(&cmd);
     }
 
     /// Set type of event for Low-Energy bluetooth.
-    fn set_le_event_mask(&mut self) -> Result<()> {
+    fn set_le_event_mask(&mut self) {
         let mut cmd = BytesMut::with_capacity(12);
 
         cmd.put_u8(HCI_COMMAND_PKT);
@@ -385,13 +390,11 @@ impl<'a> Hci<'a> {
 
         self.debug(&format!("set le event mask - writing: {:?}", HciSocketDebug(&cmd)));
 
-        self.socket.write(&cmd)?;
-
-        Ok(())
+        self.write(&cmd);
     }
 
     /// Read version of bluetooth supported by local adapter.
-    fn read_local_version(&mut self) -> Result<()> {
+    fn read_local_version(&mut self) {
         let mut cmd = BytesMut::with_capacity(4);
 
         cmd.put_u8(HCI_COMMAND_PKT);
@@ -402,13 +405,11 @@ impl<'a> Hci<'a> {
 
         self.debug(&format!("read local version - writing: {:?}", HciSocketDebug(&cmd)));
 
-        self.socket.write(&cmd)?;
-
-        Ok(())
+        self.write(&cmd);
     }
 
     /// Set Low-Energie Host mode for local adapter.
-    fn write_le_host_supported(&mut self) -> Result<()> {
+    fn write_le_host_supported(&mut self) {
         let mut cmd = BytesMut::with_capacity(4);
 
         cmd.put_u8(HCI_COMMAND_PKT);
@@ -419,13 +420,11 @@ impl<'a> Hci<'a> {
 
         self.debug(&format!("write LE host supported - writing: {:?}", HciSocketDebug(&cmd)));
 
-        self.socket.write(&cmd)?;
-
-        Ok(())
+        self.write(&cmd);
     }
 
     /// Read Low-Energie Host mode for local adapter.
-    fn read_le_host_supported(&mut self) -> Result<()> {
+    fn read_le_host_supported(&mut self) {
         let mut cmd = BytesMut::with_capacity(4);
 
         cmd.put_u8(HCI_COMMAND_PKT);
@@ -436,13 +435,11 @@ impl<'a> Hci<'a> {
 
         self.debug(&format!("read LE host supported - writing: {:?}", HciSocketDebug(&cmd)));
 
-        self.socket.write(&cmd)?;
-
-        Ok(())
+        self.write(&cmd);
     }
 
     /// Read address.
-    fn read_bd_addr(&mut self) -> Result<()> {
+    fn read_bd_addr(&mut self) {
         let mut cmd = BytesMut::with_capacity(4);
 
         cmd.put_u8(HCI_COMMAND_PKT);
@@ -453,13 +450,11 @@ impl<'a> Hci<'a> {
 
         self.debug(&format!("read bd addr - writing: {:?}", HciSocketDebug(&cmd)));
 
-        self.socket.write(&cmd)?;
-
-        Ok(())
+        self.write(&cmd);
     }
 
     /// Enable scan.
-    fn set_scan_enabled(&mut self, enabled: bool, filter_duplicates: bool) -> Result<()> {
+    fn set_scan_enabled(&mut self, enabled: bool, filter_duplicates: bool) {
         let mut cmd = BytesMut::with_capacity(6);
 
         cmd.put_u8(HCI_COMMAND_PKT);
@@ -484,13 +479,11 @@ impl<'a> Hci<'a> {
 
         self.debug(&format!("set scan enabled - writing: {:?}", HciSocketDebug(&cmd)));
 
-        self.socket.write(&cmd)?;
-
-        Ok(())
+        self.write(&cmd);
     }
 
     /// Set scan.
-    fn set_scan_parameters(&mut self) -> Result<()> {
+    fn set_scan_parameters(&mut self) {
         let mut cmd = BytesMut::with_capacity(11);
 
         cmd.put_u8(HCI_COMMAND_PKT);
@@ -508,9 +501,7 @@ impl<'a> Hci<'a> {
 
         self.debug(&format!("set scan parameters - writing: {:?}", HciSocketDebug(&cmd)));
 
-        self.socket.write(&cmd)?;
-
-        Ok(())
+        self.write(&cmd);
     }
 
     /// Manage response from bluetooth.
@@ -524,11 +515,10 @@ impl<'a> Hci<'a> {
 
         match event_type {
             HCI_EVENT_PKT => self.manage_hci_event_pkt(data),
-            HCI_ACLDATA_PKT => println!("HCI_EVENT_PKT"), // TODO
-            HCI_COMMAND_PKT => println!("HCI_EVENT_PKT"), // TODO
+            HCI_ACLDATA_PKT => println!("HCI_ACLDATA_PKT"), // TODO
+            HCI_COMMAND_PKT => println!("HCI_COMMAND_PKT"), // TODO
             e => {
-                // TODO send error to caller
-                println!("Unknown event type from bluetooth: {}", e)
+                self.callback.error(format!("Unknown event type from bluetooth: {}", e));
             }
         }
 
@@ -549,8 +539,7 @@ impl<'a> Hci<'a> {
             EVT_CMD_STATUS=>self.manage_hci_event_pkt_cmd_status(data),
             EVT_LE_META_EVENT=> self.manage_hci_event_pkt_le_meta(data),
             e => {
-                // TODO send error to caller
-                println!("Unknown event type from bluetooth: {}", e)
+                self.callback.error(format!("Unknown event sub-type from bluetooth: {}", e));
             }
         }
     }
@@ -627,7 +616,6 @@ impl<'a> Hci<'a> {
 
     /// Reset adaptor.
     fn reset_cmd(&mut self) {
-        // TODO catch error
         self.set_event_mask();
         self.set_le_event_mask();
         self.read_local_version();
@@ -653,11 +641,10 @@ impl<'a> Hci<'a> {
         let manufacturer = result.get_u16_le();
         let lmp_sub_ver = result.get_u16_le();
 
-        if hci_ver < 0x06 {
+        if hci_ver < HCI_VERSION_6 {
             self.state = HciState::Unsupported;
             self.callback.state_change(self.state.clone());
         } else if self.state != HciState::PoweredOn {
-            // TODO catch error
             self.set_scan_enabled(false, true);
             self.set_scan_parameters();
         }
@@ -710,8 +697,7 @@ impl<'a> Hci<'a> {
             LE_SET_SCAN_ENABLE_CMD=> self.callback.le_scan_enable_set(self.state.clone()),
             READ_RSSI_CMD => self.read_rssi_cmd(result),
             e => {
-                // TODO send error to caller
-                println!("Unknown cmd complete event from bluetooth: 0x{:02x}", e)
+                self.callback.error(format!("Unknown cmd complete event from bluetooth: {}", e));
             },
         }
     }
