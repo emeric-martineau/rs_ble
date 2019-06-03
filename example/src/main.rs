@@ -1,6 +1,6 @@
 extern crate rs_ble;
 
-use rs_ble::hci_socket::{Hci, HciCallback, HciState, HciLogger, BtLeConnectionComplete};
+use rs_ble::hci_socket::{Hci, HciCallback, HciState, HciLogger, BtLeConnectionComplete, BtLeAddressType};
 
 struct Callback {}
 
@@ -15,8 +15,8 @@ impl HciCallback for Callback {
 
     fn le_conn_complete(&self, status: u8, data: Option<BtLeConnectionComplete>) {
         match data {
-            Some(a) =>  println!("Status complete: {} data: {:?}", status, a),
-            None =>println!("Status complete: {}", status)
+            Some(a) => println!("Status complete: {} data: {:?}", status, a),
+            None => println!("Status complete: {}", status)
         };
     }
 
@@ -29,19 +29,17 @@ impl HciCallback for Callback {
     }
 
     fn disconn_complete(&self, handle: u16, reason: u8) {
-        println!("EVT_DISCONN_COMPLETE");
-        println!("handle: {:?}, reason: {:?}", handle, reason);
+        println!("disconn_complete -> handle: {:?}, reason: {:?}", handle, reason);
     }
 
     fn encrypt_change(&self, handle: u16, encrypt: u8) {
-        println!("EVT_ENCRYPT_CHANGE");
-        println!("handle: {:?}, encrypt: {:?}", handle, encrypt);
+        println!("encrypt_change -> handle: {:?}, encrypt: {:?}", handle, encrypt);
     }
 
     fn acl_data_pkt(&self) {}
 
     fn read_local_version(&self, hci_ver: u8, hci_rev: u16, lmp_ver: i8, manufacturer: u16, lmp_sub_ver: u16) {
-        println!("read local version: hci_ver: {:?} hci_rev: {:?} lmp_ver: {:?} manufacturer: {:?} lmp_sub_ver: {:?}", hci_ver, hci_rev, lmp_ver, manufacturer, lmp_sub_ver)
+        println!("read local version -> hci_ver: {:?} hci_rev: {:?} lmp_ver: {:?} manufacturer: {:?} lmp_sub_ver: {:?}", hci_ver, hci_rev, lmp_ver, manufacturer, lmp_sub_ver)
     }
 
     fn le_scan_parameters_set(&self) {
@@ -49,11 +47,15 @@ impl HciCallback for Callback {
     }
 
     fn le_scan_enable_set(&self, state: HciState) {
-        println!("le_scan_enable_set: {:?}", state);
+        println!("le_scan_enable_set -> state: {:?}", state);
     }
 
     fn error(&self, msg: String) {
         eprintln!("{}", msg);
+    }
+
+    fn le_advertising_report(&self, status: u8, typ: u8, address: String, address_type: BtLeAddressType, eir: Vec<u8>, rssi: i8) {
+        println!("le_advertising_report status -> status: {} type: {} address: {} address type: {:?} eir: {:?} rssi: {}", status, typ, address, address_type, eir, rssi);
     }
 }
 

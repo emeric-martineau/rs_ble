@@ -127,6 +127,8 @@ pub trait HciCallback {
     fn le_scan_enable_set(&self, state: HciState);
     /// On error.
     fn error(&self, msg: String);
+    /// When receive... I don't known.
+    fn le_advertising_report(&self, status: u8, typ: u8, address: String, address_type: BtLeAddressType, eir: Vec<u8>, rssi: i8);
 }
 
 pub trait HciLogger {
@@ -696,31 +698,39 @@ impl<'a> Hci<'a> {
     }
 
     fn process_le_advertising_report(&mut self, count: u8, data: &mut Cursor<Bytes>) {
-        // TODO
-        println!("TODO process_le_advertising_report()");
+        for i in 0..count {
+            let typ = data.get_u8();
 
-        /*
-        Hci.prototype.processLeAdvertisingReport = function(count, data) {
-          for (var i = 0; i < count; i++) {
-            var type = data.readUInt8(0);
-            var addressType = data.readUInt8(1) === 0x01 ? 'random' : 'public';
-            var address = data.slice(2, 8).toString('hex').match(/.{1,2}/g).reverse().join(':');
-            var eirLength = data.readUInt8(8);
-            var eir = data.slice(9, eirLength + 9);
-            var rssi = data.readInt8(eirLength + 9);
+            let address_type = match data.get_u8() {
+                HCI_ADDRESS_TYPE_RANDOM=> BtLeAddressType::Random,
+                _ => BtLeAddressType::Public
+            };
 
-            debug('\t\t\ttype = ' + type);
-            debug('\t\t\taddress = ' + address);
-            debug('\t\t\taddress type = ' + addressType);
-            debug('\t\t\teir = ' + eir.toString('hex'));
-            debug('\t\t\trssi = ' + rssi);
+            let address = self.read_mac_address(data);
 
-            this.emit('leAdvertisingReport', 0, type, address, addressType, eir, rssi);
+            let eir_length= data.get_u8();
 
-            data = data.slice(eirLength + 10);
-          }
-        };
-        */
+            let position = data.position() as usize;
+            let position_end = position + (eir_length as usize);
+
+            let mut eir = vec![0, eir_length];
+
+            eir.clone_from_slice(&data.get_ref()[position..position_end]);
+
+            //let eir = &data.get_ref()[position..position_end];
+
+            data.set_position(position_end as u64);
+
+            let rssi = data.get_i8();
+
+            self.debug(&format!("\t\t\ttype = {}", typ));
+            self.debug(&format!("\t\t\taddress = {}", address));
+            self.debug(&format!("\t\t\taddress type = {:?}", address_type));
+            self.debug(&format!("\t\t\teir = {:?}", HciSocketDebug(eir.as_slice())));
+            self.debug(&format!("\t\t\trssi = {}", rssi));
+
+            self.callback.le_advertising_report(0, typ, address, address_type, eir, rssi);
+        }
     }
 
     /// Process le connection update complete.
