@@ -5,23 +5,14 @@ pub mod hci;
 pub mod debug;
 
 use std::{thread, time};
-use std::io::{Cursor};
+use std::io::Cursor;
+use std::collections::HashMap;
 
 use self::hci::{BluetoothHciSocket};
 use self::hci::error::{Result, Error};
 use self::debug::HciSocketDebug;
 
 use bytes::{BytesMut, BufMut, Bytes, Buf};
-
-/// Internal state of Hci
-#[derive(Debug)]
-enum HciStructState {
-    Created,
-    CreatedHciChannelUser,
-    RunningPollDevUp,
-    Running,
-    Stopping
-}
 
 /// State of Hci interface.
 #[derive(Debug, Clone, PartialEq)]
@@ -39,47 +30,6 @@ pub enum BtLeAddressType {
     Random,
     Unknown
 }
-
-const HCI_COMMAND_PKT: u8 = 0x01;
-const HCI_ACLDATA_PKT: u8 = 0x02;
-const HCI_EVENT_PKT: u8 = 0x04;
-
-const OGF_HOST_CTL: u16 = 0x03;
-const OGF_INFO_PARAM: u16 = 0x04;
-const OGF_STATUS_PARAM: u16 = 0x05;
-const OGF_LE_CTL: u16 = 0x08;
-
-const EVT_DISCONN_COMPLETE: u8 = 0x05;
-const EVT_ENCRYPT_CHANGE: u8 = 0x08;
-const EVT_CMD_COMPLETE: u8 = 0x0e;
-const EVT_CMD_STATUS: u8 = 0x0f;
-const EVT_LE_META_EVENT: u8 = 0x3e;
-
-const OCF_RESET: u16 = 0x0003;
-const OCF_READ_LOCAL_VERSION: u16 = 0x0001;
-const OCF_WRITE_LE_HOST_SUPPORTED: u16 = 0x006D;
-const OCF_SET_EVENT_MASK: u16 = 0x0001;
-const OCF_READ_LE_HOST_SUPPORTED: u16 = 0x006C;
-const OCF_READ_BD_ADDR: u16 = 0x0009;
-const OCF_READ_RSSI: u16 = 0x0005;
-const OCF_LE_SET_SCAN_PARAMETERS: u16 = 0x000b;
-const OCF_LE_SET_SCAN_ENABLE: u16 = 0x000c;
-const OCF_LE_CREATE_CONN: u16 = 0x000d;
-
-const SET_EVENT_MASK_CMD: u16 = OCF_SET_EVENT_MASK | OGF_HOST_CTL << 10;
-const READ_LOCAL_VERSION_CMD: u16 = OCF_READ_LOCAL_VERSION | (OGF_INFO_PARAM << 10);
-const WRITE_LE_HOST_SUPPORTED_CMD: u16 = OCF_WRITE_LE_HOST_SUPPORTED | OGF_HOST_CTL << 10;
-const READ_LE_HOST_SUPPORTED_CMD: u16 = OCF_READ_LE_HOST_SUPPORTED | OGF_HOST_CTL << 10;
-const READ_BD_ADDR_CMD: u16 = OCF_READ_BD_ADDR | (OGF_INFO_PARAM << 10);
-const RESET_CMD:u16 = OCF_RESET | OGF_HOST_CTL << 10;
-const READ_RSSI_CMD: u16 = OCF_READ_RSSI | OGF_STATUS_PARAM << 10;
-
-const LE_SET_SCAN_ENABLE_CMD: u16 = OCF_LE_SET_SCAN_ENABLE | OGF_LE_CTL << 10;
-const LE_SET_SCAN_PARAMETERS_CMD: u16 = OCF_LE_SET_SCAN_PARAMETERS | OGF_LE_CTL << 10;
-const LE_CREATE_CONN_CMD: u16 = OCF_LE_CREATE_CONN | OGF_LE_CTL << 10;
-
-const HCI_VERSION_6: u8 = 0x06;
-const HCI_ADDRESS_TYPE_RANDOM: u8 = 0x01;
 
 #[derive(Debug, Clone)]
 /// Data of callback for method le_conn_complete().
@@ -118,7 +68,8 @@ pub trait HciCallback {
     fn disconn_complete(&self, handle: u16, reason: u8);
     /// Call when BT encrypt change.
     fn encrypt_change(&self, handle: u16, encrypt: u8);
-    fn acl_data_pkt(&self);
+    /// Asynchronous Connection-Less Data receive.
+    fn acl_data_pkt(&self, handle: u16, cid: u16, data: Vec<u8>);
     /// Call when get version.
     fn read_local_version(&self, hci_ver: u8, hci_rev: u16, lmp_ver: i8, manufacturer: u16, lmp_sub_ver: u16);
     /// When receive LE scan parameters.
@@ -146,6 +97,77 @@ impl HciLogger for NoneLogger {
     fn debug(&self, _expr: &str) {}
 }
 
+/// Internal state of Hci
+#[derive(Debug)]
+enum HciStructState {
+    Created,
+    CreatedHciChannelUser,
+    RunningPollDevUp,
+    Running,
+    Stopping
+}
+
+/// Internal Asynchronous Connection-Less Data Handler
+struct AclDataHandler {
+    /// Handle id.
+    handle: u16,
+    /// Size of data.
+    length: usize,
+    /// CID.
+    cid: u16,
+    /// Data receive.
+    data: Vec<u8>
+}
+
+const ACL_CONT: u16  = 0x01;
+const ACL_START: u16 = 0x02;
+
+const HCI_COMMAND_PKT: u8 = 0x01;
+const HCI_ACLDATA_PKT: u8 = 0x02;
+const HCI_EVENT_PKT: u8 = 0x04;
+const HCI_VERSION_6: u8 = 0x06;
+const HCI_ADDRESS_TYPE_RANDOM: u8 = 0x01;
+
+const OGF_HOST_CTL: u16 = 0x03;
+const OGF_INFO_PARAM: u16 = 0x04;
+const OGF_STATUS_PARAM: u16 = 0x05;
+const OGF_LE_CTL: u16 = 0x08;
+
+const EVT_DISCONN_COMPLETE: u8 = 0x05;
+const EVT_ENCRYPT_CHANGE: u8 = 0x08;
+const EVT_CMD_COMPLETE: u8 = 0x0e;
+const EVT_CMD_STATUS: u8 = 0x0f;
+const EVT_LE_META_EVENT: u8 = 0x3e;
+const EVT_LE_CONN_COMPLETE: u8 = 0x01;
+const EVT_LE_ADVERTISING_REPORT: u8 = 0x02;
+const EVT_LE_CONN_UPDATE_COMPLETE: u8 = 0x03;
+
+const OCF_RESET: u16 = 0x0003;
+const OCF_READ_LOCAL_VERSION: u16 = 0x0001;
+const OCF_WRITE_LE_HOST_SUPPORTED: u16 = 0x006D;
+const OCF_SET_EVENT_MASK: u16 = 0x0001;
+const OCF_READ_LE_HOST_SUPPORTED: u16 = 0x006C;
+const OCF_READ_BD_ADDR: u16 = 0x0009;
+const OCF_READ_RSSI: u16 = 0x0005;
+const OCF_LE_SET_SCAN_PARAMETERS: u16 = 0x000b;
+const OCF_LE_SET_SCAN_ENABLE: u16 = 0x000c;
+const OCF_LE_CREATE_CONN: u16 = 0x000d;
+
+const SET_EVENT_MASK_CMD: u16 = OCF_SET_EVENT_MASK | OGF_HOST_CTL << 10;
+const READ_LOCAL_VERSION_CMD: u16 = OCF_READ_LOCAL_VERSION | (OGF_INFO_PARAM << 10);
+const WRITE_LE_HOST_SUPPORTED_CMD: u16 = OCF_WRITE_LE_HOST_SUPPORTED | OGF_HOST_CTL << 10;
+const READ_LE_HOST_SUPPORTED_CMD: u16 = OCF_READ_LE_HOST_SUPPORTED | OGF_HOST_CTL << 10;
+const READ_BD_ADDR_CMD: u16 = OCF_READ_BD_ADDR | (OGF_INFO_PARAM << 10);
+const RESET_CMD:u16 = OCF_RESET | OGF_HOST_CTL << 10;
+const READ_RSSI_CMD: u16 = OCF_READ_RSSI | OGF_STATUS_PARAM << 10;
+
+const LE_SET_SCAN_ENABLE_CMD: u16 = OCF_LE_SET_SCAN_ENABLE | OGF_LE_CTL << 10;
+const LE_SET_SCAN_PARAMETERS_CMD: u16 = OCF_LE_SET_SCAN_PARAMETERS | OGF_LE_CTL << 10;
+const LE_CREATE_CONN_CMD: u16 = OCF_LE_CREATE_CONN | OGF_LE_CTL << 10;
+
+const HANDLE_MASK: u16 = 0x0fff;
+const FLAGS_SHIFT: u16 = 12;
+
 /*
 var Hci = function() {
   this._socket = new BluetoothHciSocket();
@@ -164,8 +186,9 @@ pub struct Hci<'a> {
     socket: BluetoothHciSocket,
     /*
     state: str,
-    device_id: str,
-    handle_buffers: str,*/
+    device_id: str,*/
+    /// Handle for Asynchronous Connection-Less
+    handle_buffers: HashMap<u16, AclDataHandler>,
     /// Local dev up
     is_dev_up: bool,
     /// Send stop to pool
@@ -203,6 +226,7 @@ impl<'a> Hci<'a> {
 
             hci = Hci {
                 socket,
+                handle_buffers: HashMap::new(),
                 is_dev_up: false,
                 stop_pool: false,
                 struct_state: HciStructState::CreatedHciChannelUser,
@@ -220,6 +244,7 @@ impl<'a> Hci<'a> {
 
             hci = Hci {
                 socket,
+                handle_buffers: HashMap::new(),
                 is_dev_up: false,
                 stop_pool: false,
                 struct_state: HciStructState::Created,
@@ -543,7 +568,7 @@ impl<'a> Hci<'a> {
 
         match event_type {
             HCI_EVENT_PKT => self.manage_hci_event_pkt(data),
-            HCI_ACLDATA_PKT => println!("HCI_ACLDATA_PKT"), // TODO
+            HCI_ACLDATA_PKT => self.manage_acl_data_pkt(data),
             HCI_COMMAND_PKT => println!("HCI_COMMAND_PKT"), // TODO
             e => self.callback.error(format!("Unknown event type from bluetooth: {}", e))
         }
@@ -652,7 +677,7 @@ impl<'a> Hci<'a> {
         match event_type {
             EVT_LE_CONN_COMPLETE => self.process_le_conn_complete(status, data),
             EVT_LE_ADVERTISING_REPORT=> self.process_le_advertising_report(status, data),
-            EVT_LE_CONN_UPDATE_COMPLETE => println!("TODO this.processLeConnUpdateComplete(status, data);"),
+            EVT_LE_CONN_UPDATE_COMPLETE => self.process_le_conn_update_complete(status, data),
             e => self.callback.error(format!("Unknown le meta event from bluetooth: {}", e))
         }
     }
@@ -698,7 +723,7 @@ impl<'a> Hci<'a> {
     }
 
     fn process_le_advertising_report(&mut self, count: u8, data: &mut Cursor<Bytes>) {
-        for i in 0..count {
+        for _ in 0..count {
             let typ = data.get_u8();
 
             let address_type = match data.get_u8() {
@@ -836,6 +861,50 @@ impl<'a> Hci<'a> {
             LE_SET_SCAN_ENABLE_CMD=> self.callback.le_scan_enable_set(self.state.clone()),
             READ_RSSI_CMD => self.read_rssi_cmd(result),
             e => self.callback.error(format!("Unknown cmd complete event from bluetooth: {}", e))
+        }
+    }
+
+    /// Manage response acl data.
+    fn manage_acl_data_pkt(&mut self, data: &mut Cursor<Bytes>) {
+        let d = data.get_u16_le();
+        let flags = d >> FLAGS_SHIFT;
+        let handle = d & HANDLE_MASK;
+
+        match flags {
+            ACL_START => self.manage_acl_data_start(handle, data),
+            ACL_CONT => {
+                // TODO
+            },
+            _ => self.callback.error(format!("Unkown flag {} for acl data !", flags))
+        }
+    }
+
+    /// Manage start flag of Asynchronous Connection-Less data.
+    fn manage_acl_data_start(&mut self, handle: u16, data: &mut Cursor<Bytes>) {
+        data.set_position(5);
+
+        let length = data.get_u16_le() as usize;
+        let cid = data.get_u16_le();
+
+        let position = data.position() as usize;
+        let stream_len = data.get_ref().len();
+        let position_end = position + stream_len;
+
+        let mut pkt_data = Vec::with_capacity(length);
+        pkt_data.extend_from_slice(&data.get_ref()[position..position_end]);
+
+        if length == pkt_data.len() {
+            self.debug(&format!("\t\thandle = {}", handle));
+            self.debug(&format!("\t\tdata = {:?}", HciSocketDebug(&pkt_data)));
+
+            self.callback.acl_data_pkt(handle, cid, pkt_data);
+        } else {
+            self.handle_buffers.insert(handle, AclDataHandler {
+                handle,
+                length,
+                cid,
+                data: pkt_data
+            });
         }
     }
 }

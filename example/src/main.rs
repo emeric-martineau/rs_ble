@@ -36,7 +36,9 @@ impl HciCallback for Callback {
         println!("encrypt_change -> handle: {:?}, encrypt: {:?}", handle, encrypt);
     }
 
-    fn acl_data_pkt(&self) {}
+    fn acl_data_pkt(&self, handle: u16, cid: u16, data: Vec<u8>) {
+        println!("acl_data_pkt -> handle: {}, cid: {}, data: {:?}", handle, cid, data);
+    }
 
     fn read_local_version(&self, hci_ver: u8, hci_rev: u16, lmp_ver: i8, manufacturer: u16, lmp_sub_ver: u16) {
         println!("read local version -> hci_ver: {:?} hci_rev: {:?} lmp_ver: {:?} manufacturer: {:?} lmp_sub_ver: {:?}", hci_ver, hci_rev, lmp_ver, manufacturer, lmp_sub_ver)
