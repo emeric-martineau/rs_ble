@@ -109,8 +109,6 @@ enum HciStructState {
 
 /// Internal Asynchronous Connection-Less Data Handler
 struct AclDataHandler {
-    /// Handle id.
-    handle: u16,
     /// Size of data.
     length: usize,
     /// CID.
@@ -872,9 +870,7 @@ impl<'a> Hci<'a> {
 
         match flags {
             ACL_START => self.manage_acl_data_start(handle, data),
-            ACL_CONT => {
-                // TODO
-            },
+            ACL_CONT => self.manage_acl_data_continue(handle, data),
             _ => self.callback.error(format!("Unkown flag {} for acl data !", flags))
         }
     }
@@ -900,11 +896,29 @@ impl<'a> Hci<'a> {
             self.callback.acl_data_pkt(handle, cid, pkt_data);
         } else {
             self.handle_buffers.insert(handle, AclDataHandler {
-                handle,
                 length,
                 cid,
                 data: pkt_data
             });
+        }
+    }
+
+    /// Manage continue flag of Asynchronous Connection-Less data.
+    fn manage_acl_data_continue(&mut self, handle: u16, data: &mut Cursor<Bytes>) {
+        let mut remove = false;
+        if let Some(acl_data_handle) = self.handle_buffers.get_mut(&handle) {
+            acl_data_handle.data.extend_from_slice(&data.get_ref()[5..]);
+
+            if acl_data_handle.length == acl_data_handle.data.len() {
+                // Nice, data complete
+                self.callback.acl_data_pkt(handle, acl_data_handle.cid, acl_data_handle.data.clone());
+
+                remove = true;
+            }
+        }
+
+        if remove {
+            self.handle_buffers.remove(&handle);
         }
     }
 }
