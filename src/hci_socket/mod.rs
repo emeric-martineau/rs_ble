@@ -76,6 +76,8 @@ pub trait HciCallback {
     fn le_scan_parameters_set(&self);
     /// When receive LE scan enable.
     fn le_scan_enable_set(&self, state: HciState);
+    /// When receive LE scan enable command.
+    fn le_scan_enable_set_cmd(&self, enable: bool, filter_duplicates: bool);
     /// On error.
     fn error(&self, msg: String);
     /// When receive... I don't known.
@@ -165,6 +167,7 @@ const LE_CREATE_CONN_CMD: u16 = OCF_LE_CREATE_CONN | OGF_LE_CTL << 10;
 
 const HANDLE_MASK: u16 = 0x0fff;
 const FLAGS_SHIFT: u16 = 12;
+const ENABLE: u8 = 0x01;
 
 /*
 var Hci = function() {
@@ -567,11 +570,31 @@ impl<'a> Hci<'a> {
         match event_type {
             HCI_EVENT_PKT => self.manage_hci_event_pkt(data),
             HCI_ACLDATA_PKT => self.manage_acl_data_pkt(data),
-            HCI_COMMAND_PKT => println!("HCI_COMMAND_PKT"), // TODO
+            HCI_COMMAND_PKT => self.manage_hci_command_pkt(data),
             e => self.callback.error(format!("Unknown event type from bluetooth: {}", e))
         }
 
         Ok(())
+    }
+
+    /// Manage response type hci command pkt from bluetooth.
+    fn manage_hci_command_pkt(&mut self, data: &mut Cursor<Bytes>) {
+        let cmd = data.get_u16_le();
+        let len = data.get_u8();
+
+        self.debug(&format!("\t\tcmd = {}", cmd));
+        self.debug(&format!("\t\tdata len = {}", len));
+
+        if cmd == LE_SET_SCAN_ENABLE_CMD {
+            let enable = data.get_u8() == ENABLE;
+            let filter_duplicates = data.get_u8() == ENABLE;
+
+            self.debug("\t\t\tLE enable scan command");
+            self.debug(&format!("\t\t\tenable scanning = {}", enable));
+            self.debug(&format!("\t\t\tfilter duplicates = {}", filter_duplicates));
+
+            self.callback.le_scan_enable_set_cmd(enable, filter_duplicates);
+        }
     }
 
     /// Manage response type hci event pkt from bluetooth.

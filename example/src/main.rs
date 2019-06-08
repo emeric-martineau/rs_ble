@@ -52,6 +52,10 @@ impl HciCallback for Callback {
         println!("le_scan_enable_set -> state: {:?}", state);
     }
 
+    fn le_scan_enable_set_cmd(&self, enable: bool, filter_duplicates: bool) {
+        println!("le_scan_enable_set_cmd -> enable: {}, filter_duplicates: {}", enable, filter_duplicates);
+    }
+
     fn error(&self, msg: String) {
         eprintln!("{}", msg);
     }
@@ -74,6 +78,7 @@ impl HciLogger for MyLogger {
 }
 
 fn main() {
+
     let callback = Callback {};
     let log = MyLogger {};
 
