@@ -2,6 +2,7 @@ extern crate rs_ble;
 
 use rs_ble::hci_socket::{Hci, HciCallback, HciState, BtLeConnectionComplete, BtLeAddressType};
 use rs_ble::hci_socket::log::ConsoleLogger;
+use rs_ble::hci_socket::hci::unix_libc::DefaultLibc;
 
 struct Callback {}
 
@@ -71,8 +72,9 @@ fn main() {
     let log = ConsoleLogger {
         debug_level: true
     };
+    let libc = DefaultLibc{};
 
-    match Hci::new(None, false, &callback, &log) {
+    match Hci::new(None, false, &callback, &log, &libc) {
         Ok(mut hci) => println!("{:?}", hci.init()),
         Err(e) => println!("Fail {:?}", e)
     }

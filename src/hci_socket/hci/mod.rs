@@ -3,22 +3,23 @@
 //! TODO comment
 pub mod bluetooth;
 pub mod error;
+pub mod unix_libc;
 
 use std::collections::HashMap;
 use std::clone::Clone;
 
 use bytes::{Bytes, BytesMut};
 use libc::{
-    AF_BLUETOOTH, SOCK_CLOEXEC, SOCK_RAW, PF_BLUETOOTH, SOCK_SEQPACKET, F_SETFL, O_NONBLOCK,
-    socket, ioctl, bind, connect, fcntl, setsockopt, write, close, read
+    AF_BLUETOOTH, SOCK_CLOEXEC, SOCK_RAW, PF_BLUETOOTH, SOCK_SEQPACKET, F_SETFL, O_NONBLOCK
 };
-use self::error::{Result, handle_error, Error};
+use self::error::{Result, Error};
 use self::bluetooth::{BTPROTO_HCI, BTPROTO_L2CAP, SOL_HCI};
 use self::bluetooth::hci::{
     sockaddr_hci, hci_dev_list_req, hci_dev_info, HCI_CHANNEL_USER, HCI_GET_DEV_LIST_MAGIC, HCI_UP,
     HCI_CHANNEL_RAW, HCI_GET_DEV_INFO_MAGIC, HCI_FILTER
 };
 use self::bluetooth::l2cap::sockaddr_l2;
+use self::unix_libc::Libc;
 
 /// In Noble, buffer is 1024 but maybe shortest
 const POLL_BUFFER_SIZE: usize = 2048;
@@ -36,8 +37,7 @@ pub const BYTE_ORDER: u32 = 1234;
 pub const ATT_CID: u16 = 4;
 
 /// Structure for BT HCI Socket.
-#[derive(Debug)]
-pub struct BluetoothHciSocket {
+pub struct BluetoothHciSocket<'a> {
     /// HCI mode
     mode: u16,
     /// Socket network
@@ -49,19 +49,19 @@ pub struct BluetoothHciSocket {
     /// Device address type
     address_type: u8,
     /// Map of handler and socket
-    l2sockets: HashMap<u16, i32>
+    l2sockets: HashMap<u16, i32>,
+    /// Libc
+    libc: &'a Libc
 }
 
 // TODO close socket
-impl BluetoothHciSocket {
+impl<'a> BluetoothHciSocket<'a> {
     /// Bind a device.
     /// Param `dev_id` is device if you know device, else None.
-    pub fn bind_user(dev_id: Option<u16>) -> Result<BluetoothHciSocket> {
-        let socket = handle_error(unsafe {
-            socket(AF_BLUETOOTH, SOCK_RAW | SOCK_CLOEXEC, BTPROTO_HCI)
-        })?;
+    pub fn bind_user(dev_id: Option<u16>, libc: &'a Libc) -> Result<BluetoothHciSocket<'a>> {
+        let socket = libc.socket(AF_BLUETOOTH, SOCK_RAW | SOCK_CLOEXEC, BTPROTO_HCI)?;
 
-        let hci_dev = BluetoothHciSocket::dev_id_for(dev_id, false, socket);
+        let hci_dev = BluetoothHciSocket::dev_id_for(dev_id, false, socket, libc);
 
         if let Err(e) = hci_dev {
             return Err(e);
@@ -73,15 +73,11 @@ impl BluetoothHciSocket {
             hci_channel: HCI_CHANNEL_USER
         };
 
-        handle_error(unsafe {
-            bind(socket, &addr as *const sockaddr_hci as *const libc::sockaddr,
-                       std::mem::size_of::<sockaddr_hci>() as u32)
-        })?;
+        libc.bind(socket, &addr as *const sockaddr_hci as *const libc::sockaddr,
+                  std::mem::size_of::<sockaddr_hci>() as u32)?;
 
-        // If no data avaible, fcntl return EAGAIN error. We don't care about that.
-        unsafe {
-            fcntl(socket, F_SETFL, O_NONBLOCK)
-        };
+        // If no data available, fcntl return EAGAIN error. We don't care about that.
+        libc.fcntl(socket, F_SETFL, O_NONBLOCK);
 
         Ok(BluetoothHciSocket {
             mode: HCI_CHANNEL_USER,
@@ -89,18 +85,17 @@ impl BluetoothHciSocket {
             dev_id:  addr.hci_dev,
             address: [0, 0, 0, 0, 0, 0],
             address_type: 0,
-            l2sockets: HashMap::new()
+            l2sockets: HashMap::new(),
+            libc
         })
     }
 
     /// Bind a device.
     /// Param `dev_id` is device if you know device, else None.
-    pub fn bind_raw(dev_id: Option<u16>) -> Result<BluetoothHciSocket> {
-        let socket = handle_error(unsafe {
-            socket(AF_BLUETOOTH, SOCK_RAW | SOCK_CLOEXEC, BTPROTO_HCI)
-        })?;
+    pub fn bind_raw(dev_id: Option<u16>, libc: &'a Libc) -> Result<BluetoothHciSocket<'a>> {
+        let socket = libc.socket(AF_BLUETOOTH, SOCK_RAW | SOCK_CLOEXEC, BTPROTO_HCI)?;
 
-        let hci_dev = BluetoothHciSocket::dev_id_for(dev_id, true, socket);
+        let hci_dev = BluetoothHciSocket::dev_id_for(dev_id, true, socket, libc);
 
         if let Err(e) = hci_dev {
             return Err(e);
@@ -112,21 +107,16 @@ impl BluetoothHciSocket {
             hci_channel: HCI_CHANNEL_RAW
         };
 
-        handle_error(unsafe {
-            bind(socket, &addr as *const sockaddr_hci as *const libc::sockaddr,
-                       std::mem::size_of::<sockaddr_hci>() as u32)
-        })?;
+        libc.bind(socket, &addr as *const sockaddr_hci as *const libc::sockaddr,
+                  std::mem::size_of::<sockaddr_hci>() as u32)?;
 
-        // If no data avaible, fcntl return EAGAIN error. We don't care about that.
-        unsafe {
-            fcntl(socket, F_SETFL, O_NONBLOCK)
-        };
+        // If no data available, fcntl return EAGAIN error. We don't care about that.
+        libc.fcntl(socket, F_SETFL, O_NONBLOCK);
 
         let mut device_information = hci_dev_info::new(dev_id);
 
-        let ioctl_res = handle_error(unsafe {
-            ioctl(socket, HCI_GET_DEV_INFO_MAGIC as u64, &mut device_information)
-        });
+        let ioctl_res = libc.ioctl(socket, HCI_GET_DEV_INFO_MAGIC,
+                                   &mut device_information as *mut hci_dev_info as *mut libc::c_void);
 
         if let Err(e) = ioctl_res {
             return Err(e);
@@ -145,7 +135,8 @@ impl BluetoothHciSocket {
             dev_id:  addr.hci_dev,
             address: device_information.bdaddr.b,
             address_type,
-            l2sockets: HashMap::new()
+            l2sockets: HashMap::new(),
+            libc
         })
     }
 
@@ -161,7 +152,7 @@ impl BluetoothHciSocket {
         self.mode = HCI_CHANNEL_CONTROL;
 
         handle_error(unsafe {
-            bind(socket, &addr as *const sockaddr_hci as *const libc::sockaddr,
+            bind(socket, &addr as *const sockaddr_hci as *const unix_libc::sockaddr,
                  std::mem::size_of::<sockaddr_hci>() as u32)
         })?;
 
@@ -172,9 +163,7 @@ impl BluetoothHciSocket {
     pub fn is_dev_up(&mut self) -> Result<bool> {
         let mut device_information = hci_dev_info::new(Some(self.dev_id.clone()));
 
-        let ioctl_res = handle_error(unsafe {
-            ioctl(self.socket, HCI_GET_DEV_INFO_MAGIC as u64, &mut device_information)
-        })?;
+        let ioctl_res = self.libc.ioctl(self.socket, HCI_GET_DEV_INFO_MAGIC, &mut device_information as *mut hci_dev_info as *mut libc::c_void)?;
 
         let result = if ioctl_res > -1 {
             (device_information.flags & (1 << HCI_UP)) > 0
@@ -189,11 +178,9 @@ impl BluetoothHciSocket {
     pub fn set_filter(&mut self, filter: &BytesMut) -> Result<()> {
         let mut filter = filter.clone();
 
-        handle_error(unsafe {
-            setsockopt(self.socket, SOL_HCI, HCI_FILTER,
+        self.libc.setsockopt(self.socket, SOL_HCI, HCI_FILTER,
                              filter.as_mut_ptr() as *mut _ as *mut libc::c_void,
-                             filter.len() as u32)
-        })?;
+                             filter.len() as u32)?;
         Ok(())
     }
 
@@ -201,10 +188,8 @@ impl BluetoothHciSocket {
     pub fn write(&mut self, data: &BytesMut) -> Result<()> {
         let mut data = data.clone();
 
-        handle_error(unsafe {
-            write(self.socket, data.as_mut_ptr() as *mut _ as *mut libc::c_void,
-                             data.len()) as i32
-        })?;
+        self.libc.write(self.socket, data.as_mut_ptr() as *mut _ as *mut libc::c_void,
+                             data.len())?;
         Ok(())
     }
 
@@ -218,9 +203,7 @@ impl BluetoothHciSocket {
     pub fn poll(&mut self) -> Result<Bytes> {
         let mut data : PollBuffer = [0u8; POLL_BUFFER_SIZE];
 
-        let result = handle_error(unsafe {
-            read(self.socket, data.as_mut_ptr() as *mut _ as *mut libc::c_void, data.len()) as i32
-        });
+        let result = self.libc.read(self.socket, data.as_mut_ptr() as *mut _ as *mut libc::c_void, data.len());
 
         let length: usize;
 
@@ -261,16 +244,12 @@ impl BluetoothHciSocket {
                 l2cid = u16::from_be(ATT_CID);
             }
 
-            let l2socket = handle_error(unsafe {
-                socket(PF_BLUETOOTH, SOCK_SEQPACKET, BTPROTO_L2CAP)
-            })?;
+            let l2socket = self.libc.socket(PF_BLUETOOTH, SOCK_SEQPACKET, BTPROTO_L2CAP)?;
 
             let l2a = sockaddr_l2::new(AF_BLUETOOTH, l2cid, self.address_type, self.address.clone());
 
-            handle_error(unsafe {
-                bind(l2socket, &l2a as *const sockaddr_l2 as *const libc::sockaddr,
-                     std::mem::size_of::<sockaddr_l2>() as u32)
-            })?;
+            self.libc.bind(l2socket, &l2a as *const sockaddr_l2 as *const libc::sockaddr,
+                     std::mem::size_of::<sockaddr_l2>() as u32)?;
 
             // BDADDR_LE_PUBLIC (0x01), BDADDR_LE_RANDOM (0x02)
             let addr_type = data[8].clone() + 1;
@@ -282,19 +261,16 @@ impl BluetoothHciSocket {
 
             let l2a = sockaddr_l2::new(AF_BLUETOOTH, l2cid, addr_type, address);
 
-            handle_error(unsafe {
-                connect(l2socket, &l2a as *const sockaddr_l2 as *const libc::sockaddr,
-                     std::mem::size_of::<sockaddr_l2>() as u32)
-            })?;
+            self.libc.connect(l2socket, &l2a as *const sockaddr_l2 as *const libc::sockaddr,
+                     std::mem::size_of::<sockaddr_l2>() as u32)?;
 
             self.l2sockets.insert(handle, l2socket);
         } else {
             let handle:u16 = ((data[4] as u16) << 8)  + (data[5] as u16);
 
             if self.l2sockets.contains_key(&handle) {
-                handle_error(unsafe {
-                    close(self.l2sockets.get(&handle).unwrap().to_owned())
-                }).unwrap_or(0) as usize;
+                self.libc.close(self.l2sockets.get(&handle).unwrap().to_owned())
+                    .unwrap_or(0) as usize;
 
                 self.l2sockets.remove(&handle);
             }
@@ -308,13 +284,13 @@ impl BluetoothHciSocket {
     /// dev_id: is the device id if know, or None
     /// is_up: select only up device
     /// socket: hci socket
-    fn dev_id_for(dev_id: Option<u16>, is_up: bool, socket: i32) -> Result<u16> {
+    fn dev_id_for(dev_id: Option<u16>, is_up: bool, socket: i32, libc: &Libc) -> Result<u16> {
         if dev_id.is_none() {
             let mut dev_list = hci_dev_list_req::new();
 
-            let ioctl_res = handle_error(unsafe {
-                ioctl(socket, HCI_GET_DEV_LIST_MAGIC as u64, &mut dev_list)
-            });
+            let ioctl_res = libc.ioctl(socket,
+                                            HCI_GET_DEV_LIST_MAGIC,
+                                            &mut dev_list as *mut hci_dev_list_req as *mut libc::c_void);
 
             if let Err(e) = ioctl_res {
                 return Err(e);

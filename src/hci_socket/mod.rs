@@ -11,6 +11,7 @@ use std::collections::HashMap;
 
 use self::hci::{BluetoothHciSocket};
 use self::hci::error::{Result, Error};
+use self::hci::unix_libc::Libc;
 use self::debug::HciSocketDebug;
 use self::log::HciLogger;
 
@@ -171,7 +172,8 @@ var Hci = function() {
 
 /// Hci structure.
 pub struct Hci<'a> {
-    socket: BluetoothHciSocket,
+    socket: BluetoothHciSocket<'a>,
+    libc: &'a Libc,
     // TODO need device_id: str ?
     /// Handle for Asynchronous Connection-Less
     handle_buffers: HashMap<u16, AclDataHandler>,
@@ -195,17 +197,18 @@ pub struct Hci<'a> {
 
 impl<'a> Hci<'a> {
     /// Create Hci interface.
-    pub fn new(dev_id: Option<u16>, is_hci_channel_user: bool, callback: &'a HciCallback, logger: &'a HciLogger) -> Result<Self> {
+    pub fn new(dev_id: Option<u16>, is_hci_channel_user: bool, callback: &'a HciCallback, logger: &'a HciLogger, libc: &'a Libc) -> Result<Self> {
         let socket;
         let hci;
 
         if is_hci_channel_user {
-            match BluetoothHciSocket::bind_user(dev_id) {
+            match BluetoothHciSocket::bind_user(dev_id, libc) {
                 Ok(s) => socket = s,
                 Err(e) => return Err(e)
             };
 
             hci = Hci {
+                libc,
                 socket,
                 handle_buffers: HashMap::new(),
                 is_dev_up: false,
@@ -218,12 +221,13 @@ impl<'a> Hci<'a> {
                 address: String::new()
             };
         } else {
-            match BluetoothHciSocket::bind_raw(dev_id) {
+            match BluetoothHciSocket::bind_raw(dev_id, libc) {
                 Ok(s) => socket = s,
                 Err(e) => return Err(e)
             };
 
             hci = Hci {
+                libc,
                 socket,
                 handle_buffers: HashMap::new(),
                 is_dev_up: false,
