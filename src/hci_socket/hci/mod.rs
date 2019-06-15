@@ -52,6 +52,7 @@ pub struct BluetoothHciSocket {
     l2sockets: HashMap<u16, i32>
 }
 
+// TODO close socket
 impl BluetoothHciSocket {
     /// Bind a device.
     /// Param `dev_id` is device if you know device, else None.

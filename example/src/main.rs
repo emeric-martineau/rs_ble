@@ -1,6 +1,7 @@
 extern crate rs_ble;
 
-use rs_ble::hci_socket::{Hci, HciCallback, HciState, HciLogger, BtLeConnectionComplete, BtLeAddressType};
+use rs_ble::hci_socket::{Hci, HciCallback, HciState, BtLeConnectionComplete, BtLeAddressType};
+use rs_ble::hci_socket::log::ConsoleLogger;
 
 struct Callback {}
 
@@ -65,24 +66,13 @@ impl HciCallback for Callback {
     }
 }
 
-pub struct MyLogger;
-
-impl HciLogger for MyLogger {
-    fn is_debug_enable(&self) -> bool {
-        true
-    }
-
-    fn debug(&self, expr: &str) {
-        println!("{}", expr);
-    }
-}
-
 fn main() {
-
     let callback = Callback {};
-    let log = MyLogger {};
+    let log = ConsoleLogger {
+        debug_level: true
+    };
 
-    match Hci::new_with_logger(None, false, &callback, Some(&log)) {
+    match Hci::new(None, false, &callback, &log) {
         Ok(mut hci) => println!("{:?}", hci.init()),
         Err(e) => println!("Fail {:?}", e)
     }

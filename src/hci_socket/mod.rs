@@ -3,6 +3,7 @@
 //! TODO comment
 pub mod hci;
 pub mod debug;
+pub mod log;
 
 use std::{thread, time};
 use std::io::Cursor;
@@ -11,6 +12,7 @@ use std::collections::HashMap;
 use self::hci::{BluetoothHciSocket};
 use self::hci::error::{Result, Error};
 use self::debug::HciSocketDebug;
+use self::log::HciLogger;
 
 use bytes::{BytesMut, BufMut, Bytes, Buf};
 
@@ -82,21 +84,6 @@ pub trait HciCallback {
     fn error(&self, msg: String);
     /// When receive... I don't known.
     fn le_advertising_report(&self, status: u8, typ: u8, address: String, address_type: BtLeAddressType, eir: Vec<u8>, rssi: i8);
-}
-
-pub trait HciLogger {
-    fn is_debug_enable(&self) -> bool;
-    fn debug(&self, expr: &str);
-}
-
-pub struct NoneLogger;
-
-impl HciLogger for NoneLogger {
-    fn is_debug_enable(&self) -> bool {
-        false
-    }
-
-    fn debug(&self, _expr: &str) {}
 }
 
 /// Internal state of Hci
@@ -185,9 +172,7 @@ var Hci = function() {
 /// Hci structure.
 pub struct Hci<'a> {
     socket: BluetoothHciSocket,
-    /*
-    state: str,
-    device_id: str,*/
+    // TODO need device_id: str ?
     /// Handle for Asynchronous Connection-Less
     handle_buffers: HashMap<u16, AclDataHandler>,
     /// Local dev up
@@ -201,7 +186,7 @@ pub struct Hci<'a> {
     /// State of Hci
     state: HciState,
     /// Logger.
-    logger: Option<&'a HciLogger>,
+    logger: &'a HciLogger,
     /// BT LE address type.
     address_type: BtLeAddressType,
     /// Current BT address.
@@ -210,12 +195,7 @@ pub struct Hci<'a> {
 
 impl<'a> Hci<'a> {
     /// Create Hci interface.
-    pub fn new(dev_id: Option<u16>, is_hci_channel_user: bool, callback: &'a HciCallback) -> Result<Self> {
-        Hci::new_with_logger(dev_id, is_hci_channel_user, callback, None)
-    }
-
-    /// Create Hci interface with logger.
-    pub fn new_with_logger(dev_id: Option<u16>, is_hci_channel_user: bool, callback: &'a HciCallback, logger: Option<&'a HciLogger>) -> Result<Self> {
+    pub fn new(dev_id: Option<u16>, is_hci_channel_user: bool, callback: &'a HciCallback, logger: &'a HciLogger) -> Result<Self> {
         let socket;
         let hci;
 
@@ -316,11 +296,7 @@ impl<'a> Hci<'a> {
 
     /// Print debug.
     fn debug(&mut self, expr: &str) {
-        if let Some(log) = self.logger {
-            if log.is_debug_enable() {
-                log.debug(expr);
-            }
-        }
+        self.logger.debug(expr);
     }
 
     /// Write data on BT socket.
