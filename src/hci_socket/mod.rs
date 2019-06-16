@@ -4,14 +4,16 @@
 pub mod hci;
 pub mod debug;
 pub mod log;
+pub mod error;
+pub mod unix_libc;
 
 use std::{thread, time};
 use std::io::Cursor;
 use std::collections::HashMap;
 
 use self::hci::{BluetoothHciSocket};
-use self::hci::error::{Result, Error};
-use self::hci::unix_libc::Libc;
+use self::error::{Result, Error};
+use self::unix_libc::Libc;
 use self::debug::HciSocketDebug;
 use self::log::HciLogger;
 
