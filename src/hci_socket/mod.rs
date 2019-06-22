@@ -7,6 +7,9 @@ pub mod log;
 pub mod error;
 pub mod unix_libc;
 
+#[cfg(test)]
+pub mod tests;
+
 use std::{thread, time};
 use std::io::Cursor;
 use std::collections::HashMap;

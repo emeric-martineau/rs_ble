@@ -152,14 +152,12 @@ pub struct hci_dev_list_req {
 
 impl hci_dev_list_req {
     pub fn new() -> hci_dev_list_req {
-        let dev_req: [hci_dev_req; HCI_MAX_DEV] = [hci_dev_req {
-            dev_id: 0,
-            dev_opt: 0
-        }; HCI_MAX_DEV];
-
         hci_dev_list_req {
             dev_num: HCI_MAX_DEV as u16,
-            dev_req
+            dev_req: [hci_dev_req {
+                dev_id: 0,
+                dev_opt: 0
+            }; HCI_MAX_DEV]
         }
     }
 }
@@ -168,7 +166,7 @@ impl hci_dev_list_req {
 fn bindgen_test_layout_hci_dev_list_req() {
     assert_eq!(
         ::std::mem::size_of::<hci_dev_list_req>(),
-        4usize,
+        132usize,
         concat!("Size of: ", stringify!(hci_dev_list_req))
     );
     assert_eq!(
