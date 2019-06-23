@@ -6,7 +6,7 @@ pub mod tests;
 use bytes::BytesMut;
 use libc::{
     socket, ioctl, bind, connect, fcntl, setsockopt, write, close, read,
-    c_int, sockaddr, socklen_t, c_void, size_t,
+    c_int, sockaddr, c_void,
     AF_BLUETOOTH, SOCK_CLOEXEC, SOCK_RAW, PF_BLUETOOTH, SOCK_SEQPACKET, F_SETFL, O_NONBLOCK
 };
 use PollBuffer;

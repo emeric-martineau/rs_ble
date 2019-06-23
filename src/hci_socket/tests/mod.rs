@@ -1,17 +1,63 @@
 use hci_socket::unix_libc::tests::TestLibc;
 use libc::{c_int, AF_BLUETOOTH};
 use std::collections::HashMap;
-use std::io::{Cursor, Read};
+use std::io::Cursor;
 use hci_socket::log::ConsoleLogger;
 use hci_socket::Hci;
-use self::callback::TestHciCallback;
 use hci_socket::hci::bluetooth::hci::{hci_dev_list_req, hci_dev_req, HCI_UP, HCI_MAX_DEV, sockaddr_hci, HCI_CHANNEL_RAW};
 use hci_socket::error::Error;
+use hci_socket::{BtLeAddressType, HciState, BtLeConnectionComplete, HciCallback};
 
-mod callback;
+mod event_pkt_evt_disconn_complete;
+
+pub struct TestHciCallback;
+
+impl HciCallback for TestHciCallback {
+    fn state_change(&self, state: HciState) {
+    }
+
+    fn address_change(&self, address: String) {
+    }
+
+    fn le_conn_complete(&self, status: u8, data: Option<BtLeConnectionComplete>) {
+    }
+
+    fn le_conn_update_complete(&self, status: u8, handle: u16, interval: f64, latency: u16, supervision_timeout: u16) {
+    }
+
+    fn rssi_read(&self, handle: u16, rssi: i8) {
+    }
+
+    fn disconn_complete(&self, handle: u16, reason: u8) {
+    }
+
+    fn encrypt_change(&self, handle: u16, encrypt: u8) {
+    }
+
+    fn acl_data_pkt(&self, handle: u16, cid: u16, data: Vec<u8>) {
+    }
+
+    fn read_local_version(&self, hci_ver: u8, hci_rev: u16, lmp_ver: i8, manufacturer: u16, lmp_sub_ver: u16) {
+    }
+
+    fn le_scan_parameters_set(&self) {
+    }
+
+    fn le_scan_enable_set(&self, state: HciState) {
+    }
+
+    fn le_scan_enable_set_cmd(&self, enable: bool, filter_duplicates: bool) {
+    }
+
+    fn error(&self, msg: String) {
+    }
+
+    fn le_advertising_report(&self, status: u8, typ: u8, address: String, address_type: BtLeAddressType, eir: Vec<u8>, rssi: i8) {
+    }
+}
 
 /// Create list of bluetooth device.
-fn init_device_list_request(fd: c_int, dev_id: u16, is_up: bool) -> HashMap<c_int, hci_dev_list_req> {
+pub fn init_device_list_request(fd: c_int, dev_id: u16, is_up: bool) -> HashMap<c_int, hci_dev_list_req> {
     let mut my_device_list: HashMap<c_int, hci_dev_list_req> = HashMap::new();
 
     let mut list_device = [hci_dev_req {
@@ -42,7 +88,7 @@ fn init_device_list_request(fd: c_int, dev_id: u16, is_up: bool) -> HashMap<c_in
 }
 
 /// Init socket.
-fn init_hci_user(socket: c_int, dev_id: u16) -> HashMap<c_int, sockaddr_hci> {
+pub fn init_hci_user(socket: c_int, dev_id: u16) -> HashMap<c_int, sockaddr_hci> {
     let mut bind_sockaddr_hci: HashMap<c_int, sockaddr_hci> = HashMap::new();
 
     let addr = sockaddr_hci {
@@ -80,7 +126,7 @@ pub fn bind_user_hci_chanel_raw() {
 
     match Hci::new(None, false, &callback, &log, &libc) {
         Ok(mut hci) => println!("{:?}", hci.init()),
-        Err(e) =>  panic!("Hci new {:?}", e)
+        Err(e) =>  panic!("Hci new() {:?}", e)
     }
 }
 
@@ -119,7 +165,7 @@ pub fn bind_user_hci_chanel_raw_device_not_found() {
     };
 
     match Hci::new(None, false, &callback, &log, &libc) {
-        Ok(mut hci) => panic!("No error raised!"),
+        Ok(hci) => panic!("No error raised!"),
         Err(e) =>  match e {
             Error::NoDeviceFound => println!("Ok"),
             e => panic!("Error must be Error::NoDeviceFound; Found {:?}", e)
@@ -157,7 +203,9 @@ pub fn bind_user_hci_chanel_raw_socket_error() {
                 e => panic!("Error must be Error::PermissionDenied; Found {:?}", e)
             }
         },
-        Err(e) =>  panic!("Hci new {:?}", e)
+        Err(e) =>  panic!("Hci new() {:?}", e)
     }
 }
+
+
 // TODO : hci_chanel_user

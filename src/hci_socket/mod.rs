@@ -112,55 +112,55 @@ struct AclDataHandler {
     data: Vec<u8>
 }
 
-const ACL_CONT: u16  = 0x01;
-const ACL_START: u16 = 0x02;
+pub const ACL_CONT: u16  = 0x01;
+pub const ACL_START: u16 = 0x02;
 
-const HCI_COMMAND_PKT: u8 = 0x01;
-const HCI_ACLDATA_PKT: u8 = 0x02;
-const HCI_EVENT_PKT: u8 = 0x04;
-const HCI_VERSION_6: u8 = 0x06;
-const HCI_ADDRESS_TYPE_RANDOM: u8 = 0x01;
+pub const HCI_COMMAND_PKT: u8 = 0x01;
+pub const HCI_ACLDATA_PKT: u8 = 0x02;
+pub const HCI_EVENT_PKT: u8 = 0x04;
+pub const HCI_VERSION_6: u8 = 0x06;
+pub const HCI_ADDRESS_TYPE_RANDOM: u8 = 0x01;
 
-const OGF_HOST_CTL: u16 = 0x03;
-const OGF_INFO_PARAM: u16 = 0x04;
-const OGF_STATUS_PARAM: u16 = 0x05;
-const OGF_LE_CTL: u16 = 0x08;
+pub const OGF_HOST_CTL: u16 = 0x03;
+pub const OGF_INFO_PARAM: u16 = 0x04;
+pub const OGF_STATUS_PARAM: u16 = 0x05;
+pub const OGF_LE_CTL: u16 = 0x08;
 
-const EVT_DISCONN_COMPLETE: u8 = 0x05;
-const EVT_ENCRYPT_CHANGE: u8 = 0x08;
-const EVT_CMD_COMPLETE: u8 = 0x0e;
-const EVT_CMD_STATUS: u8 = 0x0f;
-const EVT_LE_META_EVENT: u8 = 0x3e;
-const EVT_LE_CONN_COMPLETE: u8 = 0x01;
-const EVT_LE_ADVERTISING_REPORT: u8 = 0x02;
-const EVT_LE_CONN_UPDATE_COMPLETE: u8 = 0x03;
+pub const EVT_DISCONN_COMPLETE: u8 = 0x05;
+pub const EVT_ENCRYPT_CHANGE: u8 = 0x08;
+pub const EVT_CMD_COMPLETE: u8 = 0x0e;
+pub const EVT_CMD_STATUS: u8 = 0x0f;
+pub const EVT_LE_META_EVENT: u8 = 0x3e;
+pub const EVT_LE_CONN_COMPLETE: u8 = 0x01;
+pub const EVT_LE_ADVERTISING_REPORT: u8 = 0x02;
+pub const EVT_LE_CONN_UPDATE_COMPLETE: u8 = 0x03;
 
-const OCF_RESET: u16 = 0x0003;
-const OCF_READ_LOCAL_VERSION: u16 = 0x0001;
-const OCF_WRITE_LE_HOST_SUPPORTED: u16 = 0x006D;
-const OCF_SET_EVENT_MASK: u16 = 0x0001;
-const OCF_READ_LE_HOST_SUPPORTED: u16 = 0x006C;
-const OCF_READ_BD_ADDR: u16 = 0x0009;
-const OCF_READ_RSSI: u16 = 0x0005;
-const OCF_LE_SET_SCAN_PARAMETERS: u16 = 0x000b;
-const OCF_LE_SET_SCAN_ENABLE: u16 = 0x000c;
-const OCF_LE_CREATE_CONN: u16 = 0x000d;
+pub const OCF_RESET: u16 = 0x0003;
+pub const OCF_READ_LOCAL_VERSION: u16 = 0x0001;
+pub const OCF_WRITE_LE_HOST_SUPPORTED: u16 = 0x006D;
+pub const OCF_SET_EVENT_MASK: u16 = 0x0001;
+pub const OCF_READ_LE_HOST_SUPPORTED: u16 = 0x006C;
+pub const OCF_READ_BD_ADDR: u16 = 0x0009;
+pub const OCF_READ_RSSI: u16 = 0x0005;
+pub const OCF_LE_SET_SCAN_PARAMETERS: u16 = 0x000b;
+pub const OCF_LE_SET_SCAN_ENABLE: u16 = 0x000c;
+pub const OCF_LE_CREATE_CONN: u16 = 0x000d;
 
-const SET_EVENT_MASK_CMD: u16 = OCF_SET_EVENT_MASK | OGF_HOST_CTL << 10;
-const READ_LOCAL_VERSION_CMD: u16 = OCF_READ_LOCAL_VERSION | (OGF_INFO_PARAM << 10);
-const WRITE_LE_HOST_SUPPORTED_CMD: u16 = OCF_WRITE_LE_HOST_SUPPORTED | OGF_HOST_CTL << 10;
-const READ_LE_HOST_SUPPORTED_CMD: u16 = OCF_READ_LE_HOST_SUPPORTED | OGF_HOST_CTL << 10;
-const READ_BD_ADDR_CMD: u16 = OCF_READ_BD_ADDR | (OGF_INFO_PARAM << 10);
-const RESET_CMD:u16 = OCF_RESET | OGF_HOST_CTL << 10;
-const READ_RSSI_CMD: u16 = OCF_READ_RSSI | OGF_STATUS_PARAM << 10;
+pub const SET_EVENT_MASK_CMD: u16 = OCF_SET_EVENT_MASK | OGF_HOST_CTL << 10;
+pub const READ_LOCAL_VERSION_CMD: u16 = OCF_READ_LOCAL_VERSION | (OGF_INFO_PARAM << 10);
+pub const WRITE_LE_HOST_SUPPORTED_CMD: u16 = OCF_WRITE_LE_HOST_SUPPORTED | OGF_HOST_CTL << 10;
+pub const READ_LE_HOST_SUPPORTED_CMD: u16 = OCF_READ_LE_HOST_SUPPORTED | OGF_HOST_CTL << 10;
+pub const READ_BD_ADDR_CMD: u16 = OCF_READ_BD_ADDR | (OGF_INFO_PARAM << 10);
+pub const RESET_CMD:u16 = OCF_RESET | OGF_HOST_CTL << 10;
+pub const READ_RSSI_CMD: u16 = OCF_READ_RSSI | OGF_STATUS_PARAM << 10;
 
-const LE_SET_SCAN_ENABLE_CMD: u16 = OCF_LE_SET_SCAN_ENABLE | OGF_LE_CTL << 10;
-const LE_SET_SCAN_PARAMETERS_CMD: u16 = OCF_LE_SET_SCAN_PARAMETERS | OGF_LE_CTL << 10;
-const LE_CREATE_CONN_CMD: u16 = OCF_LE_CREATE_CONN | OGF_LE_CTL << 10;
+pub const LE_SET_SCAN_ENABLE_CMD: u16 = OCF_LE_SET_SCAN_ENABLE | OGF_LE_CTL << 10;
+pub const LE_SET_SCAN_PARAMETERS_CMD: u16 = OCF_LE_SET_SCAN_PARAMETERS | OGF_LE_CTL << 10;
+pub const LE_CREATE_CONN_CMD: u16 = OCF_LE_CREATE_CONN | OGF_LE_CTL << 10;
 
 const HANDLE_MASK: u16 = 0x0fff;
 const FLAGS_SHIFT: u16 = 12;
-const ENABLE: u8 = 0x01;
+pub const ENABLE: u8 = 0x01;
 
 /*
 var Hci = function() {
@@ -304,6 +304,11 @@ impl<'a> Hci<'a> {
     /// Print debug.
     fn debug(&mut self, expr: &str) {
         self.logger.debug(expr);
+    }
+
+    /// Stop polling.
+    fn stop(&mut self) {
+        self.stop_pool = true;
     }
 
     /// Write data on BT socket.

@@ -2,9 +2,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::io::{Cursor, Read};
 use bytes::BytesMut;
-use libc::{
-    c_int, sockaddr, socklen_t, c_void, size_t
-};
+use libc::c_int;
 use hci_socket::hci::bluetooth::hci::{
     sockaddr_hci, hci_dev_info, hci_dev_list_req
 };
@@ -12,16 +10,15 @@ use hci_socket::hci::bluetooth::l2cap::sockaddr_l2;
 use hci_socket::error::{Result, Error};
 use PollBuffer;
 use super::Libc;
-use core::borrow::Borrow;
 
 /// Structure of call `ioctl_hci_dev_info()`.
-pub struct Ioctl_hci_dev_info {
+pub struct IoctlHciDevInfo {
     pub fd: c_int,
     pub device_information: hci_dev_info
 }
 
 /// Structure of call `ioctl_hci_dev_list_req()`.
-pub struct Ioctl_hci_dev_list_req {
+pub struct IoctlHciDevListReq {
     pub fd: c_int,
     pub device_information: hci_dev_list_req
 }
@@ -38,7 +35,7 @@ pub struct TestLibc {
     /// Counter of call of is_socket_l2cap().
     pub is_socker_l2cap_call: Cell<u16>,
     /// Value of call `ioctl_hci_dev_info()` method.
-    pub ioctl_hci_dev_info_call: RefCell<Vec<Ioctl_hci_dev_info>>,
+    pub ioctl_hci_dev_info_call: RefCell<Vec<IoctlHciDevInfo>>,
     /// Allow call of `ioctl_hci_dev_info()` method or return `PermissionDenied`. If not found,
     /// don't throw error.
     pub ioctl_hci_dev_info_call_error: HashMap<c_int, bool>,
@@ -47,6 +44,7 @@ pub struct TestLibc {
     /// Value return when call `bind_sockaddr_hci` method. If not set, return `PermissionDenied`.
     pub bind_sockaddr_hci: HashMap<c_int, sockaddr_hci>,
     /// Value return when call `read()` method. `Vec<u8>` can contain more data than `PollBuffer`.
+    /// If no more data available return Error:Other("Stop test").
     pub read_data: RefCell<HashMap<c_int, Cursor<Vec<u8>>>>
 }
 
@@ -108,7 +106,7 @@ impl Libc for TestLibc {
     }
 
     fn ioctl_hci_dev_info(&self, fd: c_int, device_information: &mut hci_dev_info)  -> Result<c_int> {
-        let data = Ioctl_hci_dev_info {
+        let data = IoctlHciDevInfo {
             fd,
             device_information: device_information.clone()
         };
@@ -189,9 +187,14 @@ impl Libc for TestLibc {
 
     fn read(&self, fd: c_int, buf: &mut PollBuffer) -> Result<c_int> {
         match self.read_data.borrow_mut().get_mut(&fd) {
-            Some(mut item) => {
+            Some(item) => {
                 match item.read(buf) {
-                    Ok(size) => Ok(size as c_int),
+                    Ok(size) => {
+                        match size {
+                            0 => Err(Error::Other(String::from("Stop test"))),
+                            size => Ok(size as c_int)
+                        }
+                    },
                     Err(e) => {
                         Err(Error::Other(e.to_string()))
                     }
