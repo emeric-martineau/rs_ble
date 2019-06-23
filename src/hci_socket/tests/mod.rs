@@ -1,6 +1,7 @@
 use hci_socket::unix_libc::tests::TestLibc;
 use libc::{c_int, AF_BLUETOOTH};
 use std::collections::HashMap;
+use std::io::{Cursor, Read};
 use hci_socket::log::ConsoleLogger;
 use hci_socket::Hci;
 use self::callback::TestHciCallback;
@@ -62,13 +63,15 @@ pub fn bind_user_hci_chanel_raw() {
     let ioctl_hci_dev_info_call_error: HashMap<c_int, bool> = HashMap::new();
     let my_device_list = init_device_list_request(0, 1, true);
     let bind_sockaddr_hci = init_hci_user(0,1);
+    let read_data: HashMap<c_int, Cursor<Vec<u8>>> = HashMap::new();
 
     let libc = TestLibc::new(
         is_socker_hci,
         is_socker_l2cap,
         ioctl_hci_dev_info_call_error,
         my_device_list,
-        bind_sockaddr_hci);
+        bind_sockaddr_hci,
+        read_data);
 
     let callback = TestHciCallback {};
     let log = ConsoleLogger {
@@ -86,6 +89,7 @@ pub fn bind_user_hci_chanel_raw_device_not_found() {
     let is_socker_hci = true;
     let is_socker_l2cap = true;
     let ioctl_hci_dev_info_call_error: HashMap<c_int, bool> = HashMap::new();
+    let read_data: HashMap<c_int, Cursor<Vec<u8>>> = HashMap::new();
 
     let mut my_device_list: HashMap<c_int, hci_dev_list_req> = HashMap::new();
 
@@ -106,7 +110,8 @@ pub fn bind_user_hci_chanel_raw_device_not_found() {
         is_socker_l2cap,
         ioctl_hci_dev_info_call_error,
         my_device_list,
-        bind_sockaddr_hci);
+        bind_sockaddr_hci,
+        read_data);
 
     let callback = TestHciCallback {};
     let log = ConsoleLogger {
@@ -117,9 +122,42 @@ pub fn bind_user_hci_chanel_raw_device_not_found() {
         Ok(mut hci) => panic!("No error raised!"),
         Err(e) =>  match e {
             Error::NoDeviceFound => println!("Ok"),
-            _ => panic!("Error must be Error::NoDeviceFound")
+            e => panic!("Error must be Error::NoDeviceFound; Found {:?}", e)
         }
     }
 }
 
+#[test]
+pub fn bind_user_hci_chanel_raw_socket_error() {
+    let is_socker_hci = true;
+    let is_socker_l2cap = true;
+    let ioctl_hci_dev_info_call_error: HashMap<c_int, bool> = HashMap::new();
+    let my_device_list = init_device_list_request(0, 1, true);
+    let bind_sockaddr_hci = init_hci_user(0,1);
+    let read_data: HashMap<c_int, Cursor<Vec<u8>>> = HashMap::new();
+
+    let libc = TestLibc::new(
+        is_socker_hci,
+        is_socker_l2cap,
+        ioctl_hci_dev_info_call_error,
+        my_device_list,
+        bind_sockaddr_hci,
+        read_data);
+
+    let callback = TestHciCallback {};
+    let log = ConsoleLogger {
+        debug_level: true
+    };
+
+    match Hci::new(None, false, &callback, &log, &libc) {
+        Ok(mut hci) => match hci.init() {
+            Ok(_) => panic!("Hci init() must be return error"),
+            Err(e) => match e {
+                Error::PermissionDenied => println!("Ok"),
+                e => panic!("Error must be Error::PermissionDenied; Found {:?}", e)
+            }
+        },
+        Err(e) =>  panic!("Hci new {:?}", e)
+    }
+}
 // TODO : hci_chanel_user

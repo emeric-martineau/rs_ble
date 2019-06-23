@@ -296,11 +296,9 @@ impl<'a> Hci<'a> {
 
             if self.stop_pool {
                 self.struct_state = HciStructState::Stopping;
-                break;
+                return Ok(())
             }
         }
-
-        Ok(())
     }
 
     /// Print debug.

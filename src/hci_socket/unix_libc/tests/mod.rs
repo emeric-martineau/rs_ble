@@ -1,5 +1,6 @@
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
+use std::io::{Cursor, Read};
 use bytes::BytesMut;
 use libc::{
     c_int, sockaddr, socklen_t, c_void, size_t
@@ -44,7 +45,9 @@ pub struct TestLibc {
     /// Value return when call `ioctl_hci_dev_list_req` method. If not set, return `PermissionDenied`.
     pub hci_dev_list_req: HashMap<c_int, hci_dev_list_req>,
     /// Value return when call `bind_sockaddr_hci` method. If not set, return `PermissionDenied`.
-    pub bind_sockaddr_hci: HashMap<c_int, sockaddr_hci>
+    pub bind_sockaddr_hci: HashMap<c_int, sockaddr_hci>,
+    /// Value return when call `read()` method. `Vec<u8>` can contain more data than `PollBuffer`.
+    pub read_data: RefCell<HashMap<c_int, Cursor<Vec<u8>>>>
 }
 
 impl TestLibc {
@@ -53,7 +56,8 @@ impl TestLibc {
             is_socker_l2cap: bool,
             ioctl_hci_dev_info_call_error: HashMap<c_int, bool>,
             hci_dev_list_req: HashMap<c_int, hci_dev_list_req>,
-            bind_sockaddr_hci: HashMap<i32, sockaddr_hci>) -> TestLibc {
+            bind_sockaddr_hci: HashMap<i32, sockaddr_hci>,
+            read_data: HashMap<c_int, Cursor<Vec<u8>>>) -> TestLibc {
         TestLibc {
             fd: Cell::new(0),
             is_socker_hci,
@@ -63,7 +67,8 @@ impl TestLibc {
             ioctl_hci_dev_info_call: RefCell::new(Vec::new()),
             ioctl_hci_dev_info_call_error,
             hci_dev_list_req,
-            bind_sockaddr_hci
+            bind_sockaddr_hci,
+            read_data: RefCell::new(read_data)
 
         }
     }
@@ -183,7 +188,20 @@ impl Libc for TestLibc {
     }
 
     fn read(&self, fd: c_int, buf: &mut PollBuffer) -> Result<c_int> {
-        println!("> Libc.read() : return PermissionDenied (TODO)");
-        Err(Error::PermissionDenied)
+        match self.read_data.borrow_mut().get_mut(&fd) {
+            Some(mut item) => {
+                match item.read(buf) {
+                    Ok(size) => Ok(size as c_int),
+                    Err(e) => {
+                        Err(Error::Other(e.to_string()))
+                    }
+                }
+
+            },
+            None => {
+                println!("> Libc.read() : return PermissionDenied");
+                Err(Error::PermissionDenied)
+            }
+        }
     }
 }
