@@ -61,35 +61,36 @@ pub struct BtLeConnectionComplete {
 }
 
 /// Callback when receive data.
+/// Each method return true to stop polling data.
 pub trait HciCallback {
     /// Call when change state.
-    fn state_change(&self, state: HciState);
+    fn state_change(&self, state: HciState) -> bool;
     /// Address of adaptor.
-    fn address_change(&self, address: String);
+    fn address_change(&self, address: String) -> bool;
     /// Status on connection.
-    fn le_conn_complete(&self, status: u8, data: Option<BtLeConnectionComplete>);
+    fn le_conn_complete(&self, status: u8, data: Option<BtLeConnectionComplete>) -> bool;
     /// When update connection complete.
-    fn le_conn_update_complete(&self, status: u8, handle: u16, interval: f64, latency: u16, supervision_timeout: u16);
+    fn le_conn_update_complete(&self, status: u8, handle: u16, interval: f64, latency: u16, supervision_timeout: u16) -> bool;
     /// Rssi.
-    fn rssi_read(&self, handle: u16, rssi: i8);
+    fn rssi_read(&self, handle: u16, rssi: i8) -> bool;
     /// Call when BT peripheral disconnect.
-    fn disconn_complete(&self, handle: u16, reason: u8);
+    fn disconn_complete(&self, handle: u16, reason: u8) -> bool;
     /// Call when BT encrypt change.
-    fn encrypt_change(&self, handle: u16, encrypt: u8);
+    fn encrypt_change(&self, handle: u16, encrypt: u8) -> bool;
     /// Asynchronous Connection-Less Data receive.
-    fn acl_data_pkt(&self, handle: u16, cid: u16, data: Vec<u8>);
+    fn acl_data_pkt(&self, handle: u16, cid: u16, data: Vec<u8>) -> bool;
     /// Call when get version.
-    fn read_local_version(&self, hci_ver: u8, hci_rev: u16, lmp_ver: i8, manufacturer: u16, lmp_sub_ver: u16);
+    fn read_local_version(&self, hci_ver: u8, hci_rev: u16, lmp_ver: i8, manufacturer: u16, lmp_sub_ver: u16) -> bool;
     /// When receive LE scan parameters.
-    fn le_scan_parameters_set(&self);
+    fn le_scan_parameters_set(&self) -> bool;
     /// When receive LE scan enable.
-    fn le_scan_enable_set(&self, state: HciState);
+    fn le_scan_enable_set(&self, state: HciState) -> bool;
     /// When receive LE scan enable command.
-    fn le_scan_enable_set_cmd(&self, enable: bool, filter_duplicates: bool);
+    fn le_scan_enable_set_cmd(&self, enable: bool, filter_duplicates: bool) -> bool;
     /// On error.
-    fn error(&self, msg: String);
+    fn error(&self, msg: String) -> bool;
     /// When receive... I don't known.
-    fn le_advertising_report(&self, status: u8, typ: u8, address: String, address_type: BtLeAddressType, eir: Vec<u8>, rssi: i8);
+    fn le_advertising_report(&self, status: u8, typ: u8, address: String, address_type: BtLeAddressType, eir: Vec<u8>, rssi: i8) -> bool;
 }
 
 /// Internal state of Hci
@@ -175,6 +176,66 @@ var Hci = function() {
 };
 */
 
+pub struct EmptyHciCallback;
+
+impl HciCallback for EmptyHciCallback {
+    fn state_change(&self, _state: HciState) -> bool {
+        false
+    }
+
+    fn address_change(&self, _address: String) -> bool {
+        false
+    }
+
+    fn le_conn_complete(&self, _status: u8, _data: Option<BtLeConnectionComplete>) -> bool {
+        false
+    }
+
+    fn le_conn_update_complete(&self, _status: u8, _handle: u16, _interval: f64, _latency: u16, _supervision_timeout: u16) -> bool {
+        false
+    }
+
+    fn rssi_read(&self, _handle: u16, _rssi: i8) -> bool {
+        false
+    }
+
+    fn disconn_complete(&self, _handle: u16, _reason: u8) -> bool {
+        false
+    }
+
+    fn encrypt_change(&self, _handle: u16, _encrypt: u8) -> bool {
+        false
+    }
+
+    fn acl_data_pkt(&self, _handle: u16, _cid: u16, _data: Vec<u8>) -> bool {
+        false
+    }
+
+    fn read_local_version(&self, _hci_ver: u8, _hci_rev: u16, _lmp_ver: i8, _manufacturer: u16, _lmp_sub_ver: u16) -> bool {
+        false
+    }
+
+    fn le_scan_parameters_set(&self) -> bool {
+        false
+    }
+
+    fn le_scan_enable_set(&self, _state: HciState) -> bool {
+        false
+    }
+
+    fn le_scan_enable_set_cmd(&self, _enable: bool, _filter_duplicates: bool) -> bool {
+        false
+    }
+
+    fn error(&self, _msg: String) -> bool {
+        false
+    }
+
+    fn le_advertising_report(&self, _status: u8, _typ: u8, _address: String, _address_type: BtLeAddressType, _eir: Vec<u8>, _rssi: i8) -> bool {
+        false
+    }
+}
+
 /// Hci structure.
 pub struct Hci<'a> {
     socket: BluetoothHciSocket<'a>,
@@ -185,7 +246,7 @@ pub struct Hci<'a> {
     /// Local dev up
     is_dev_up: bool,
     /// Send stop to pool
-    stop_pool: bool,
+    stop_polling: bool,
     /// Internal state of struct Hci
     struct_state: HciStructState,
     /// Callback
@@ -202,7 +263,7 @@ pub struct Hci<'a> {
 
 impl<'a> Hci<'a> {
     /// Create Hci interface.
-    pub fn new(dev_id: Option<u16>, is_hci_channel_user: bool, callback: &'a HciCallback, logger: &'a HciLogger, libc: &'a Libc) -> Result<Self> {
+    pub fn new(dev_id: Option<u16>, is_hci_channel_user: bool, logger: &'a HciLogger, libc: &'a Libc) -> Result<Self> {
         let socket;
         let hci;
 
@@ -217,9 +278,9 @@ impl<'a> Hci<'a> {
                 socket,
                 handle_buffers: HashMap::new(),
                 is_dev_up: false,
-                stop_pool: false,
+                stop_polling: false,
                 struct_state: HciStructState::CreatedHciChannelUser,
-                callback,
+                callback: &EmptyHciCallback{},
                 state: HciState::PoweredOff,
                 logger,
                 address_type: BtLeAddressType::Unknown,
@@ -236,9 +297,9 @@ impl<'a> Hci<'a> {
                 socket,
                 handle_buffers: HashMap::new(),
                 is_dev_up: false,
-                stop_pool: false,
+                stop_polling: false,
                 struct_state: HciStructState::Created,
-                callback,
+                callback: &EmptyHciCallback{},
                 state: HciState::PoweredOff,
                 logger,
                 address_type: BtLeAddressType::Unknown,
@@ -265,7 +326,11 @@ impl<'a> Hci<'a> {
     }
 
     /// Run init bluetooth adapter and poll data.
-    pub fn init(&mut self) -> Result<()> {
+    pub fn init(&mut self, callback: Option<&'a HciCallback>) -> Result<()> {
+        if callback.is_some() {
+            self.callback = callback.unwrap();
+        }
+
         let wait_time = time::Duration::from_millis(1000);
 
         loop {
@@ -294,7 +359,7 @@ impl<'a> Hci<'a> {
 
             thread::sleep(wait_time);
 
-            if self.stop_pool {
+            if self.stop_polling {
                 self.struct_state = HciStructState::Stopping;
                 return Ok(())
             }
@@ -308,13 +373,13 @@ impl<'a> Hci<'a> {
 
     /// Stop polling.
     fn stop(&mut self) {
-        self.stop_pool = true;
+        self.stop_polling = true;
     }
 
     /// Write data on BT socket.
     fn write(&mut self, cmd: &BytesMut) {
         if let Err(err) = self.socket.write(&cmd) {
-            self.callback.error(format!("Error when write data: {:?}", err));
+            self.stop_polling = self.callback.error(format!("Error when write data: {:?}", err));
         }
     }
 
@@ -352,7 +417,7 @@ impl<'a> Hci<'a> {
             }
         } else if self.state != HciState::PoweredOff {
             self.state = HciState::PoweredOff;
-            self.callback.state_change(HciState::PoweredOff)
+            self.stop_polling = self.callback.state_change(HciState::PoweredOff)
         }
 
         self.is_dev_up = is_dev_up;
@@ -559,7 +624,7 @@ impl<'a> Hci<'a> {
             HCI_EVENT_PKT => self.manage_hci_event_pkt(data),
             HCI_ACLDATA_PKT => self.manage_acl_data_pkt(data),
             HCI_COMMAND_PKT => self.manage_hci_command_pkt(data),
-            e => self.callback.error(format!("Unknown event type from bluetooth: {}", e))
+            e => self.stop_polling = self.callback.error(format!("Unknown event type from bluetooth: {}", e))
         }
 
         Ok(())
@@ -581,7 +646,7 @@ impl<'a> Hci<'a> {
             self.debug(&format!("\t\t\tenable scanning = {}", enable));
             self.debug(&format!("\t\t\tfilter duplicates = {}", filter_duplicates));
 
-            self.callback.le_scan_enable_set_cmd(enable, filter_duplicates);
+            self.stop_polling = self.callback.le_scan_enable_set_cmd(enable, filter_duplicates);
         }
     }
 
@@ -598,7 +663,7 @@ impl<'a> Hci<'a> {
             EVT_CMD_COMPLETE=> self.manage_hci_event_pkt_cmd(data),
             EVT_CMD_STATUS=>self.manage_hci_event_pkt_cmd_status(data),
             EVT_LE_META_EVENT=> self.manage_hci_event_pkt_le_meta(data),
-            e => self.callback.error(format!("Unknown event sub-type from bluetooth: {}", e))
+            e => self.stop_polling = self.callback.error(format!("Unknown event sub-type from bluetooth: {}", e))
         }
     }
 
@@ -611,7 +676,7 @@ impl<'a> Hci<'a> {
         self.debug(&format!("\t\thandle = {}", handle));
         self.debug(&format!("\t\treason = {}", reason));
 
-        self.callback.disconn_complete(handle, reason);
+        self.stop_polling = self.callback.disconn_complete(handle, reason);
     }
 
     /// Manage event complete.
@@ -640,7 +705,7 @@ impl<'a> Hci<'a> {
         self.debug(&format!("\t\thandle = {}", handle));
         self.debug(&format!("\t\tencrypt = {}", encrypt));
 
-        self.callback.encrypt_change(handle, encrypt);
+        self.stop_polling = self.callback.encrypt_change(handle, encrypt);
     }
 
     /// Manage event command status.
@@ -659,7 +724,7 @@ impl<'a> Hci<'a> {
     fn process_cmd_status_event(&mut self, cmd: u16, status: u8) {
         if cmd == LE_CREATE_CONN_CMD {
             if status != 0 {
-                self.callback.le_conn_complete(status, None);
+                self.stop_polling = self.callback.le_conn_complete(status, None);
             }
         }
     }
@@ -687,7 +752,7 @@ impl<'a> Hci<'a> {
             EVT_LE_CONN_COMPLETE => self.process_le_conn_complete(status, data),
             EVT_LE_ADVERTISING_REPORT=> self.process_le_advertising_report(status, data),
             EVT_LE_CONN_UPDATE_COMPLETE => self.process_le_conn_update_complete(status, data),
-            e => self.callback.error(format!("Unknown le meta event from bluetooth: {}", e))
+            e => self.stop_polling = self.callback.error(format!("Unknown le meta event from bluetooth: {}", e))
         }
     }
 
@@ -728,7 +793,7 @@ impl<'a> Hci<'a> {
             master_clock_accuracy
         };
 
-        self.callback.le_conn_complete(status, Some(result));
+        self.stop_polling = self.callback.le_conn_complete(status, Some(result));
     }
 
     fn process_le_advertising_report(&mut self, count: u8, data: &mut Cursor<Bytes>) {
@@ -763,7 +828,7 @@ impl<'a> Hci<'a> {
             self.debug(&format!("\t\t\teir = {:?}", HciSocketDebug(eir.as_slice())));
             self.debug(&format!("\t\t\trssi = {}", rssi));
 
-            self.callback.le_advertising_report(0, typ, address, address_type, eir, rssi);
+            self.stop_polling = self.callback.le_advertising_report(0, typ, address, address_type, eir, rssi);
         }
     }
 
@@ -779,7 +844,7 @@ impl<'a> Hci<'a> {
         self.debug(&format!("\t\t\tlatency = {}", latency));
         self.debug(&format!("\t\t\tsupervision timeout = {}", supervision_timeout));
 
-        self.callback.le_conn_update_complete(status, handle, interval, latency, supervision_timeout);
+        self.stop_polling = self.callback.le_conn_update_complete(status, handle, interval, latency, supervision_timeout);
     }
 
     /// Reset adaptor.
@@ -811,13 +876,13 @@ impl<'a> Hci<'a> {
 
         if hci_ver < HCI_VERSION_6 {
             self.state = HciState::Unsupported;
-            self.callback.state_change(self.state.clone());
+            self.stop_polling = self.callback.state_change(self.state.clone());
         } else if self.state != HciState::PoweredOn {
             self.set_scan_enabled(false, true);
             self.set_scan_parameters();
         }
 
-        self.callback.read_local_version(hci_ver, hci_rev, lmp_ver, manufacturer, lmp_sub_ver);
+        self.stop_polling = self.callback.read_local_version(hci_ver, hci_rev, lmp_ver, manufacturer, lmp_sub_ver);
     }
 
     /// Read a MAC address in data.
@@ -842,7 +907,7 @@ impl<'a> Hci<'a> {
 
         self.debug(&format!("address = {}", &addr));
 
-        self.callback.address_change(addr)
+        self.stop_polling = self.callback.address_change(addr)
     }
 
     fn read_rssi_cmd(&mut self, result: &mut Cursor<Bytes>) {
@@ -852,7 +917,7 @@ impl<'a> Hci<'a> {
         self.debug(&format!("\t\t\thandle = {}", &handle));
         self.debug(&format!("\t\t\trssi = {}", &rssi));
 
-        self.callback.rssi_read(handle, rssi);
+        self.stop_polling = self.callback.rssi_read(handle, rssi);
     }
 
     /// Call when receive from BT adapter cmd complete.
@@ -863,13 +928,13 @@ impl<'a> Hci<'a> {
             READ_LOCAL_VERSION_CMD => self.read_local_version_cmd(result),
             READ_BD_ADDR_CMD=> self.read_bd_addr_cmd(result),
             LE_SET_SCAN_PARAMETERS_CMD => {
-                self.callback.state_change(HciState::PoweredOn);
+                self.stop_polling = self.callback.state_change(HciState::PoweredOn);
 
-                self.callback.le_scan_parameters_set();
+                self.stop_polling = self.callback.le_scan_parameters_set();
             },
-            LE_SET_SCAN_ENABLE_CMD=> self.callback.le_scan_enable_set(self.state.clone()),
+            LE_SET_SCAN_ENABLE_CMD=> self.stop_polling = self.callback.le_scan_enable_set(self.state.clone()),
             READ_RSSI_CMD => self.read_rssi_cmd(result),
-            e => self.callback.error(format!("Unknown cmd complete event from bluetooth: {}", e))
+            e => self.stop_polling = self.callback.error(format!("Unknown cmd complete event from bluetooth: {}", e))
         }
     }
 
@@ -882,7 +947,7 @@ impl<'a> Hci<'a> {
         match flags {
             ACL_START => self.manage_acl_data_start(handle, data),
             ACL_CONT => self.manage_acl_data_continue(handle, data),
-            _ => self.callback.error(format!("Unkown flag {} for acl data !", flags))
+            _ => self.stop_polling = self.callback.error(format!("Unkown flag {} for acl data !", flags))
         }
     }
 
@@ -904,7 +969,7 @@ impl<'a> Hci<'a> {
             self.debug(&format!("\t\thandle = {}", handle));
             self.debug(&format!("\t\tdata = {:?}", HciSocketDebug(&pkt_data)));
 
-            self.callback.acl_data_pkt(handle, cid, pkt_data);
+            self.stop_polling = self.callback.acl_data_pkt(handle, cid, pkt_data);
         } else {
             self.handle_buffers.insert(handle, AclDataHandler {
                 length,
@@ -922,7 +987,7 @@ impl<'a> Hci<'a> {
 
             if acl_data_handle.length == acl_data_handle.data.len() {
                 // Nice, data complete
-                self.callback.acl_data_pkt(handle, acl_data_handle.cid, acl_data_handle.data.clone());
+                self.stop_polling = self.callback.acl_data_pkt(handle, acl_data_handle.cid, acl_data_handle.data.clone());
 
                 remove = true;
             }
