@@ -9,6 +9,8 @@ use hci_socket::error::Error;
 use hci_socket::{BtLeAddressType, HciState, BtLeConnectionComplete, HciCallback};
 
 mod event_pkt_evt_disconn_complete;
+mod event_pkt_evt_encrypt_change;
+mod event_pkt_evt_cmd_complete;
 
 pub struct TestHciCallback;
 
@@ -222,3 +224,4 @@ pub fn bind_user_hci_chanel_raw_socket_error() {
 
 
 // TODO : hci_chanel_user
+// TODO : test Libc.write() error

@@ -23,6 +23,12 @@ pub struct IoctlHciDevListReq {
     pub device_information: hci_dev_list_req
 }
 
+/// Structure when write data
+pub struct WriteData {
+    pub fd: c_int,
+    pub buf: BytesMut
+}
+
 pub struct TestLibc {
     /// File descriptor counter.
     fd: Cell<c_int>,
@@ -45,7 +51,9 @@ pub struct TestLibc {
     pub bind_sockaddr_hci: HashMap<c_int, sockaddr_hci>,
     /// Value return when call `read()` method. `Vec<u8>` can contain more data than `PollBuffer`.
     /// If no more data available return Error:Other("Stop test").
-    pub read_data: RefCell<HashMap<c_int, Cursor<Vec<u8>>>>
+    pub read_data: RefCell<HashMap<c_int, Cursor<Vec<u8>>>>,
+    /// Data of `write()` call.
+    pub write_data: RefCell<Vec<WriteData>>
 }
 
 impl TestLibc {
@@ -66,8 +74,8 @@ impl TestLibc {
             ioctl_hci_dev_info_call_error,
             hci_dev_list_req,
             bind_sockaddr_hci,
-            read_data: RefCell::new(read_data)
-
+            read_data: RefCell::new(read_data),
+            write_data: RefCell::new(Vec::new())
         }
     }
 }
@@ -176,8 +184,12 @@ impl Libc for TestLibc {
     }
 
     fn write(&self, fd: c_int, buf: &mut BytesMut) -> Result<c_int> {
-        println!("> Libc.write() : return PermissionDenied (TODO)");
-        Err(Error::PermissionDenied)
+        self.write_data.borrow_mut().push(WriteData {
+            fd: fd.clone(),
+            buf: buf.clone()
+        });
+
+        Ok(0)
     }
 
     fn close(&self, fd: c_int) -> Result<c_int> {

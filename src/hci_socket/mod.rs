@@ -23,7 +23,7 @@ use self::log::HciLogger;
 use bytes::{BytesMut, BufMut, Bytes, Buf};
 
 /// State of Hci interface.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Copy)]
 pub enum HciState {
     PoweredOff,
     PoweredOn,

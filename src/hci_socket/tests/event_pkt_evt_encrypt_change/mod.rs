@@ -2,7 +2,7 @@ use libc::c_int;
 use std::collections::HashMap;
 use std::io::Cursor;
 use hci_socket::log::ConsoleLogger;
-use hci_socket::{Hci, EVT_DISCONN_COMPLETE, BtLeAddressType, HciState, BtLeConnectionComplete, HciCallback, HCI_EVENT_PKT};
+use hci_socket::{Hci, EVT_ENCRYPT_CHANGE, BtLeAddressType, HciState, BtLeConnectionComplete, HciCallback, HCI_EVENT_PKT};
 use super::{init_device_list_request, init_hci_user};
 use hci_socket::unix_libc::tests::TestLibc;
 use std::cell::{Cell, RefCell};
@@ -36,17 +36,17 @@ impl HciCallback for TestHciEvtDisconnCompleteCallback  {
         false
     }
 
-    fn disconn_complete(&self, handle: u16, reason: u8) -> bool {
+    fn disconn_complete(&self, _handle: u16, _reason: u8) -> bool {
+        false
+    }
+
+    fn encrypt_change(&self, handle: u16, encrypt: u8) -> bool {
         self.is_called.replace(true);
 
         assert_eq!(0x0201, handle);
-        assert_eq!(0x03, reason);
+        assert_eq!(0x03, encrypt);
 
         true
-    }
-
-    fn encrypt_change(&self, _handle: u16, _encrypt: u8) -> bool {
-        false
     }
 
     fn acl_data_pkt(&self, _handle: u16, _cid: u16, _data: Vec<u8>) -> bool {
@@ -79,7 +79,7 @@ impl HciCallback for TestHciEvtDisconnCompleteCallback  {
 }
 
 #[test]
-pub fn bind_user_hci_chanel_raw_hci_event_pkt_evt_disconn_complete() {
+pub fn bind_user_hci_chanel_raw_hci_event_pkt_evt_encrypt_change() {
     let is_socker_hci = true;
     let is_socker_l2cap = true;
     let ioctl_hci_dev_info_call_error: HashMap<c_int, bool> = HashMap::new();
@@ -88,13 +88,13 @@ pub fn bind_user_hci_chanel_raw_hci_event_pkt_evt_disconn_complete() {
     let mut read_data: Vec<u8> = Vec::new();
 
     read_data.push(HCI_EVENT_PKT);
-    read_data.push(EVT_DISCONN_COMPLETE);
+    read_data.push(EVT_ENCRYPT_CHANGE);
     read_data.push(0x00);
     read_data.push(0x00);
     // Handle 0x0201
     read_data.push(0x01);
     read_data.push(0x02);
-    // Reason
+    // encrypt
     read_data.push(0x03);
 
     let mut read_data_map = HashMap::new();
