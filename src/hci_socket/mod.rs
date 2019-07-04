@@ -882,7 +882,10 @@ impl<'a> Hci<'a> {
             self.set_scan_parameters();
         }
 
-        self.stop_polling = self.callback.read_local_version(hci_ver, hci_rev, lmp_ver, manufacturer, lmp_sub_ver);
+        if ! self.stop_polling {
+            self.stop_polling = self.callback.read_local_version(hci_ver, hci_rev, lmp_ver,
+                                                                 manufacturer, lmp_sub_ver);
+        }
     }
 
     /// Read a MAC address in data.
@@ -930,7 +933,9 @@ impl<'a> Hci<'a> {
             LE_SET_SCAN_PARAMETERS_CMD => {
                 self.stop_polling = self.callback.state_change(HciState::PoweredOn);
 
-                self.stop_polling = self.callback.le_scan_parameters_set();
+                if ! self.stop_polling {
+                    self.stop_polling = self.callback.le_scan_parameters_set();
+                }
             },
             LE_SET_SCAN_ENABLE_CMD=> self.stop_polling = self.callback.le_scan_enable_set(self.state.clone()),
             READ_RSSI_CMD => self.read_rssi_cmd(result),
