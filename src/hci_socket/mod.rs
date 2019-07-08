@@ -39,7 +39,7 @@ pub enum BtLeAddressType {
     Unknown
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 /// Data of callback for method le_conn_complete().
 pub struct BtLeConnectionComplete {
     /// Handle.
@@ -661,7 +661,7 @@ impl<'a> Hci<'a> {
             EVT_DISCONN_COMPLETE => self.manage_hci_event_pkt_disconnect(data),
             EVT_ENCRYPT_CHANGE=> self.manage_hci_event_pkt_encrypt_change(data),
             EVT_CMD_COMPLETE=> self.manage_hci_event_pkt_cmd(data),
-            EVT_CMD_STATUS=>self.manage_hci_event_pkt_cmd_status(data),
+            EVT_CMD_STATUS=> self.manage_hci_event_pkt_cmd_status(data),
             EVT_LE_META_EVENT=> self.manage_hci_event_pkt_le_meta(data),
             e => self.stop_polling = self.callback.error(format!("Unknown event sub-type from bluetooth: {}", e))
         }
@@ -711,7 +711,6 @@ impl<'a> Hci<'a> {
     /// Manage event command status.
     fn manage_hci_event_pkt_cmd_status(&mut self, data: &mut Cursor<Bytes>) {
         let status = data.get_u8();
-        data.set_position(5);
         let cmd = data.get_u16_le();
 
         self.debug(&format!("\t\tcmd = {}", cmd));

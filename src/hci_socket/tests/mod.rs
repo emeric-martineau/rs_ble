@@ -11,6 +11,7 @@ use hci_socket::{BtLeAddressType, HciState, BtLeConnectionComplete, HciCallback}
 mod event_pkt_evt_disconn_complete;
 mod event_pkt_evt_encrypt_change;
 mod event_pkt_evt_cmd_complete;
+mod event_pkt_evt_cmd_status;
 
 pub struct TestHciCallback;
 
