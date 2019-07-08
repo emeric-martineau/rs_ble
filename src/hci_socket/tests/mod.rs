@@ -12,6 +12,7 @@ mod event_pkt_evt_disconn_complete;
 mod event_pkt_evt_encrypt_change;
 mod event_pkt_evt_cmd_complete;
 mod event_pkt_evt_cmd_status;
+mod event_pkt_evt_le_meta_event;
 
 pub struct TestHciCallback;
 
