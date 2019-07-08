@@ -77,7 +77,7 @@ impl HciCallback for TestHciCommandPktCallback  {
 }
 
 #[test]
-pub fn bind_user_hci_chanel_raw_hci_command_pkt() {
+pub fn bind_user_hci_channel_raw_hci_command_pkt() {
     let is_socker_hci = true;
     let is_socker_l2cap = true;
     let ioctl_hci_dev_info_call_error: HashMap<c_int, bool> = HashMap::new();

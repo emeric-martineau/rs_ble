@@ -122,7 +122,7 @@ pub fn init_hci_user(socket: c_int, dev_id: u16) -> HashMap<c_int, sockaddr_hci>
 }
 
 #[test]
-pub fn bind_user_hci_chanel_raw() {
+pub fn bind_user_hci_channel_raw() {
     let is_socker_hci = true;
     let is_socker_l2cap = true;
     let ioctl_hci_dev_info_call_error: HashMap<c_int, bool> = HashMap::new();
@@ -150,7 +150,7 @@ pub fn bind_user_hci_chanel_raw() {
 }
 
 #[test]
-pub fn bind_user_hci_chanel_raw_device_not_found() {
+pub fn bind_user_hci_channel_raw_device_not_found() {
     let is_socker_hci = true;
     let is_socker_l2cap = true;
     let ioctl_hci_dev_info_call_error: HashMap<c_int, bool> = HashMap::new();
@@ -192,7 +192,7 @@ pub fn bind_user_hci_chanel_raw_device_not_found() {
 }
 
 #[test]
-pub fn bind_user_hci_chanel_raw_socket_error() {
+pub fn bind_user_hci_channel_raw_socket_error() {
     let is_socker_hci = true;
     let is_socker_l2cap = true;
     let ioctl_hci_dev_info_call_error: HashMap<c_int, bool> = HashMap::new();
@@ -226,7 +226,7 @@ pub fn bind_user_hci_chanel_raw_socket_error() {
 }
 
 
-// TODO : hci_chanel_user
+// TODO : hci_channel_user
 // TODO : test Libc.write() error
 
 // TODO HCI_ACLDATA_PKT

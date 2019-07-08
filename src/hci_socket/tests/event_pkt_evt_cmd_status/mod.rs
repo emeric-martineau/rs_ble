@@ -77,7 +77,7 @@ impl HciCallback for TestHciEvtCmdStatusCallback  {
 }
 
 #[test]
-pub fn bind_user_hci_chanel_raw_hci_event_pkt_evt_cmd_status_not_zero() {
+pub fn bind_user_hci_channel_raw_hci_event_pkt_evt_cmd_status_not_zero() {
     let is_socker_hci = true;
     let is_socker_l2cap = true;
     let ioctl_hci_dev_info_call_error: HashMap<c_int, bool> = HashMap::new();
@@ -121,7 +121,7 @@ pub fn bind_user_hci_chanel_raw_hci_event_pkt_evt_cmd_status_not_zero() {
 }
 
 #[test]
-pub fn bind_user_hci_chanel_raw_hci_event_pkt_evt_cmd_status_zero() {
+pub fn bind_user_hci_channel_raw_hci_event_pkt_evt_cmd_status_zero() {
     let is_socker_hci = true;
     let is_socker_l2cap = true;
     let ioctl_hci_dev_info_call_error: HashMap<c_int, bool> = HashMap::new();
@@ -172,7 +172,7 @@ pub fn bind_user_hci_chanel_raw_hci_event_pkt_evt_cmd_status_zero() {
 }
 
 #[test]
-pub fn bind_user_hci_chanel_raw_hci_event_pkt_evt_cmd_status_none() {
+pub fn bind_user_hci_channel_raw_hci_event_pkt_evt_cmd_status_none() {
     let is_socker_hci = true;
     let is_socker_l2cap = true;
     let ioctl_hci_dev_info_call_error: HashMap<c_int, bool> = HashMap::new();

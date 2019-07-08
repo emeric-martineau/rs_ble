@@ -85,7 +85,7 @@ impl HciCallback for TestHciEvtLeMetaEventCallback  {
 }
 
 #[test]
-pub fn bind_user_hci_chanel_raw_hci_event_pkt_evt_le_meta_event_evt_le_conn_complete() {
+pub fn bind_user_hci_channel_raw_hci_event_pkt_evt_le_meta_event_evt_le_conn_complete() {
     let is_socker_hci = true;
     let is_socker_l2cap = true;
     let ioctl_hci_dev_info_call_error: HashMap<c_int, bool> = HashMap::new();
@@ -226,7 +226,7 @@ impl HciCallback for TestHciEvtLeAdvertisingReportCallback  {
 }
 
 #[test]
-pub fn bind_user_hci_chanel_raw_hci_event_pkt_evt_le_meta_event_evt_le_advertising_report() {
+pub fn bind_user_hci_channel_raw_hci_event_pkt_evt_le_meta_event_evt_le_advertising_report() {
     let is_socker_hci = true;
     let is_socker_l2cap = true;
     let ioctl_hci_dev_info_call_error: HashMap<c_int, bool> = HashMap::new();
@@ -380,7 +380,7 @@ impl HciCallback for TestHciEvtLeConnUpdateCompleteCallback  {
 }
 
 #[test]
-pub fn bind_user_hci_chanel_raw_hci_event_pkt_evt_le_meta_event_evt_le_conn_update_complete() {
+pub fn bind_user_hci_channel_raw_hci_event_pkt_evt_le_meta_event_evt_le_conn_update_complete() {
     let is_socker_hci = true;
     let is_socker_l2cap = true;
     let ioctl_hci_dev_info_call_error: HashMap<c_int, bool> = HashMap::new();

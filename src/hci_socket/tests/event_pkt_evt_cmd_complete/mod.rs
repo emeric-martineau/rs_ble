@@ -312,7 +312,7 @@ impl HciCallback for TestReadRssiCmdCmdHciEvtDisconnCompleteCallback  {
 }
 
 #[test]
-pub fn bind_user_hci_chanel_raw_hci_event_pkt_evt_cmd_complete_read_local_version_cmd_unsupported() {
+pub fn bind_user_hci_channel_raw_hci_event_pkt_evt_cmd_complete_read_local_version_cmd_unsupported() {
     let is_socker_hci = true;
     let is_socker_l2cap = true;
     let ioctl_hci_dev_info_call_error: HashMap<c_int, bool> = HashMap::new();
@@ -373,7 +373,7 @@ pub fn bind_user_hci_chanel_raw_hci_event_pkt_evt_cmd_complete_read_local_versio
 
 
 #[test]
-pub fn bind_user_hci_chanel_raw_hci_event_pkt_evt_cmd_complete_read_local_version_cmd() {
+pub fn bind_user_hci_channel_raw_hci_event_pkt_evt_cmd_complete_read_local_version_cmd() {
     let is_socker_hci = true;
     let is_socker_l2cap = true;
     let ioctl_hci_dev_info_call_error: HashMap<c_int, bool> = HashMap::new();
@@ -442,7 +442,7 @@ pub fn bind_user_hci_chanel_raw_hci_event_pkt_evt_cmd_complete_read_local_versio
 }
 
 #[test]
-pub fn bind_user_hci_chanel_raw_hci_event_pkt_evt_cmd_complete_read_bd_addr_cmd() {
+pub fn bind_user_hci_channel_raw_hci_event_pkt_evt_cmd_complete_read_bd_addr_cmd() {
     let is_socker_hci = true;
     let is_socker_l2cap = true;
     let ioctl_hci_dev_info_call_error: HashMap<c_int, bool> = HashMap::new();
@@ -495,7 +495,7 @@ pub fn bind_user_hci_chanel_raw_hci_event_pkt_evt_cmd_complete_read_bd_addr_cmd(
 }
 
 #[test]
-pub fn bind_user_hci_chanel_raw_hci_event_pkt_evt_cmd_complete_le_set_scan_parameters_cmd() {
+pub fn bind_user_hci_channel_raw_hci_event_pkt_evt_cmd_complete_le_set_scan_parameters_cmd() {
     let is_socker_hci = true;
     let is_socker_l2cap = true;
     let ioctl_hci_dev_info_call_error: HashMap<c_int, bool> = HashMap::new();
@@ -541,7 +541,7 @@ pub fn bind_user_hci_chanel_raw_hci_event_pkt_evt_cmd_complete_le_set_scan_param
 }
 
 #[test]
-pub fn bind_user_hci_chanel_raw_hci_event_pkt_evt_cmd_read_rssi_cmd() {
+pub fn bind_user_hci_channel_raw_hci_event_pkt_evt_cmd_read_rssi_cmd() {
     let is_socker_hci = true;
     let is_socker_l2cap = true;
     let ioctl_hci_dev_info_call_error: HashMap<c_int, bool> = HashMap::new();
