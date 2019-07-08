@@ -14,6 +14,7 @@ mod event_pkt_evt_cmd_complete;
 mod event_pkt_evt_cmd_status;
 mod event_pkt_evt_le_meta_event;
 mod command_pkt;
+mod acldata_pkt;
 
 pub struct TestHciCallback;
 
@@ -228,5 +229,3 @@ pub fn bind_user_hci_channel_raw_socket_error() {
 
 // TODO : hci_channel_user
 // TODO : test Libc.write() error
-
-// TODO HCI_ACLDATA_PKT

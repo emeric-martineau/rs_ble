@@ -957,6 +957,7 @@ impl<'a> Hci<'a> {
 
     /// Manage start flag of Asynchronous Connection-Less data.
     fn manage_acl_data_start(&mut self, handle: u16, data: &mut Cursor<Bytes>) {
+
         data.set_position(5);
 
         let length = data.get_u16_le() as usize;
@@ -964,7 +965,12 @@ impl<'a> Hci<'a> {
 
         let position = data.position() as usize;
         let stream_len = data.get_ref().len();
-        let position_end = position + stream_len;
+        let mut position_end = position + length;
+
+        // If some try attack us by crash
+        if position_end > stream_len {
+            position_end = stream_len;
+        }
 
         let mut pkt_data = Vec::with_capacity(length);
         pkt_data.extend_from_slice(&data.get_ref()[position..position_end]);
