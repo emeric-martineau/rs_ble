@@ -5,10 +5,7 @@ use hci_socket::log::ConsoleLogger;
 use hci_socket::{Hci, EVT_CMD_STATUS, BtLeAddressType, HciState, BtLeConnectionComplete, HciCallback, HCI_EVENT_PKT, LE_CREATE_CONN_CMD};
 use super::{init_device_list_request, init_hci_user};
 use hci_socket::unix_libc::tests::TestLibc;
-use std::cell::{Cell, RefCell};
-use std::sync::mpsc;
-use std::sync::mpsc::{Sender, Receiver};
-use std::thread;
+use std::cell::Cell;
 use hci_socket::error::Error;
 use bytes::BufMut;
 

@@ -2,14 +2,10 @@ use libc::c_int;
 use std::collections::HashMap;
 use std::io::Cursor;
 use hci_socket::log::ConsoleLogger;
-use hci_socket::{Hci, EVT_CMD_STATUS, BtLeAddressType, HciState, BtLeConnectionComplete, HciCallback, HCI_EVENT_PKT, EVT_LE_META_EVENT, EVT_LE_CONN_COMPLETE};
+use hci_socket::{Hci, BtLeAddressType, HciState, BtLeConnectionComplete, HciCallback, HCI_EVENT_PKT, EVT_LE_META_EVENT, EVT_LE_CONN_COMPLETE};
 use super::{init_device_list_request, init_hci_user};
 use hci_socket::unix_libc::tests::TestLibc;
-use std::cell::{Cell, RefCell};
-use std::sync::mpsc;
-use std::sync::mpsc::{Sender, Receiver};
-use std::thread;
-use hci_socket::error::Error;
+use std::cell::Cell;
 use bytes::BufMut;
 
 pub struct TestHciEvtLeMetaEventCallback {

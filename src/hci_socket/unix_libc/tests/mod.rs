@@ -164,21 +164,21 @@ impl Libc for TestLibc {
         }
     }
 
-    fn bind_sockaddr_l2(&self, socket: c_int, address: &sockaddr_l2) -> Result<c_int> {
+    fn bind_sockaddr_l2(&self, _socket: c_int, _address: &sockaddr_l2) -> Result<c_int> {
         println!("> Libc.bind_sockaddr_l2() : return PermissionDenied (TODO)");
         Err(Error::PermissionDenied)
     }
 
-    fn connect(&self, socket: c_int, address: &sockaddr_l2) -> Result<c_int> {
+    fn connect(&self, _socket: c_int, _address: &sockaddr_l2) -> Result<c_int> {
         println!("> Libc.connect() : return PermissionDenied (TODO)");
         Err(Error::PermissionDenied)
     }
 
-    fn fcntl_non_block(&self, fd: c_int) -> c_int {
+    fn fcntl_non_block(&self, _fd: c_int) -> c_int {
         -1
     }
 
-    fn setsockopt_filter(&self, socket: c_int, filter: &mut BytesMut) -> Result<c_int> {
+    fn setsockopt_filter(&self, _socket: c_int, _filter: &mut BytesMut) -> Result<c_int> {
         println!("> Libc.setsockopt_filter() : return PermissionDenied (TODO)");
         Err(Error::PermissionDenied)
     }
@@ -192,7 +192,7 @@ impl Libc for TestLibc {
         Ok(0)
     }
 
-    fn close(&self, fd: c_int) -> Result<c_int> {
+    fn close(&self, _fd: c_int) -> Result<c_int> {
         println!("> Libc.close() : return PermissionDenied (TODO)");
         Err(Error::PermissionDenied)
     }

@@ -5,11 +5,7 @@ use hci_socket::log::ConsoleLogger;
 use hci_socket::{Hci, EVT_ENCRYPT_CHANGE, BtLeAddressType, HciState, BtLeConnectionComplete, HciCallback, HCI_EVENT_PKT};
 use super::{init_device_list_request, init_hci_user};
 use hci_socket::unix_libc::tests::TestLibc;
-use std::cell::{Cell, RefCell};
-use std::sync::mpsc;
-use std::sync::mpsc::{Sender, Receiver};
-use std::thread;
-use hci_socket::error::Error;
+use std::cell::Cell;
 
 pub struct TestHciEvtDisconnCompleteCallback {
     pub is_called: Cell<bool>

@@ -5,11 +5,7 @@ use hci_socket::log::ConsoleLogger;
 use hci_socket::{Hci, EVT_CMD_COMPLETE, BtLeAddressType, HciState, BtLeConnectionComplete, HciCallback, HCI_EVENT_PKT, READ_LOCAL_VERSION_CMD, HCI_COMMAND_PKT, LE_SET_SCAN_ENABLE_CMD, LE_SET_SCAN_PARAMETERS_CMD, READ_BD_ADDR_CMD, READ_RSSI_CMD};
 use super::{init_device_list_request, init_hci_user};
 use hci_socket::unix_libc::tests::{TestLibc, WriteData};
-use std::cell::{Cell, RefCell};
-use std::sync::mpsc;
-use std::sync::mpsc::{Sender, Receiver};
-use std::thread;
-use hci_socket::error::Error;
+use std::cell::Cell;
 use bytes::{BufMut, BytesMut};
 
 pub struct TestHciEvtDisconnCompleteCallback {
@@ -63,7 +59,7 @@ impl HciCallback for TestHciEvtDisconnCompleteCallback  {
         false
     }
 
-    fn encrypt_change(&self, handle: u16, encrypt: u8) -> bool {
+    fn encrypt_change(&self, _handle: u16, _encrypt: u8) -> bool {
         false
     }
 
@@ -140,7 +136,7 @@ impl HciCallback for TestReadBdAddrCmdHciEvtDisconnCompleteCallback  {
         false
     }
 
-    fn encrypt_change(&self, handle: u16, encrypt: u8) -> bool {
+    fn encrypt_change(&self, _handle: u16, _encrypt: u8) -> bool {
         false
     }
 
@@ -211,7 +207,7 @@ impl HciCallback for TestLeSetScanParametersCmdHciEvtDisconnCompleteCallback  {
         false
     }
 
-    fn encrypt_change(&self, handle: u16, encrypt: u8) -> bool {
+    fn encrypt_change(&self, _handle: u16, _encrypt: u8) -> bool {
         false
     }
 
@@ -253,7 +249,7 @@ pub struct TestReadRssiCmdCmdHciEvtDisconnCompleteCallback {
 }
 
 impl HciCallback for TestReadRssiCmdCmdHciEvtDisconnCompleteCallback  {
-    fn state_change(&self, state: HciState) -> bool {
+    fn state_change(&self, _state: HciState) -> bool {
         false
     }
 
@@ -282,7 +278,7 @@ impl HciCallback for TestReadRssiCmdCmdHciEvtDisconnCompleteCallback  {
         false
     }
 
-    fn encrypt_change(&self, handle: u16, encrypt: u8) -> bool {
+    fn encrypt_change(&self, _handle: u16, _encrypt: u8) -> bool {
         false
     }
 
