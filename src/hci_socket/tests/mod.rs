@@ -1,7 +1,6 @@
-use hci_socket::unix_libc::tests::TestLibc;
+use hci_socket::unix_libc::tests::{TestLibc, NetworkPacket};
 use libc::{c_int, AF_BLUETOOTH};
 use std::collections::HashMap;
-use std::io::Cursor;
 use hci_socket::log::ConsoleLogger;
 use hci_socket::Hci;
 use hci_socket::hci::bluetooth::hci::{hci_dev_list_req, hci_dev_req, HCI_UP, HCI_MAX_DEV, sockaddr_hci, HCI_CHANNEL_RAW};
@@ -129,7 +128,7 @@ pub fn bind_user_hci_channel_raw() {
     let ioctl_hci_dev_info_call_error: HashMap<c_int, bool> = HashMap::new();
     let my_device_list = init_device_list_request( 1, true);
     let bind_sockaddr_hci = init_hci_user(0,1);
-    let read_data: HashMap<c_int, Cursor<Vec<u8>>> = HashMap::new();
+    let read_data: HashMap<c_int, NetworkPacket> = HashMap::new();
 
     let libc = TestLibc::new(
         is_socker_hci,
@@ -155,7 +154,7 @@ pub fn bind_user_hci_channel_raw_device_not_found() {
     let is_socker_hci = true;
     let is_socker_l2cap = true;
     let ioctl_hci_dev_info_call_error: HashMap<c_int, bool> = HashMap::new();
-    let read_data: HashMap<c_int, Cursor<Vec<u8>>> = HashMap::new();
+    let read_data: HashMap<c_int, NetworkPacket> = HashMap::new();
 
     let mut my_device_list: HashMap<c_int, hci_dev_list_req> = HashMap::new();
 
@@ -199,7 +198,7 @@ pub fn bind_user_hci_channel_raw_socket_error() {
     let ioctl_hci_dev_info_call_error: HashMap<c_int, bool> = HashMap::new();
     let my_device_list = init_device_list_request( 1, true);
     let bind_sockaddr_hci = init_hci_user(0,1);
-    let read_data: HashMap<c_int, Cursor<Vec<u8>>> = HashMap::new();
+    let read_data: HashMap<c_int, NetworkPacket> = HashMap::new();
 
     let libc = TestLibc::new(
         is_socker_hci,

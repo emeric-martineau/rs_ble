@@ -1,12 +1,10 @@
 use libc::c_int;
 use std::collections::HashMap;
-use std::io::Cursor;
 use hci_socket::log::ConsoleLogger;
 use hci_socket::{Hci, BtLeAddressType, HciState, BtLeConnectionComplete, HciCallback, HCI_COMMAND_PKT, LE_SET_SCAN_ENABLE_CMD};
 use super::{init_device_list_request, init_hci_user};
-use hci_socket::unix_libc::tests::TestLibc;
+use hci_socket::unix_libc::tests::{TestLibc, NetworkPacket};
 use std::cell::Cell;
-use hci_socket::error::Error;
 use bytes::BufMut;
 
 pub struct TestHciCommandPktCallback {
@@ -83,19 +81,24 @@ pub fn bind_user_hci_channel_raw_hci_command_pkt() {
     let ioctl_hci_dev_info_call_error: HashMap<c_int, bool> = HashMap::new();
     let my_device_list = init_device_list_request( 1, true);
     let bind_sockaddr_hci = init_hci_user(0,1);
-    let mut read_data: Vec<u8> = Vec::new();
 
-    read_data.push(HCI_COMMAND_PKT);
-    read_data.put_u16_le(LE_SET_SCAN_ENABLE_CMD);
+    let mut read_data = NetworkPacket::new();
+
+    let mut packet: Vec<u8> = Vec::new();
+
+    packet.push(HCI_COMMAND_PKT);
+    packet.put_u16_le(LE_SET_SCAN_ENABLE_CMD);
     // Len
-    read_data.push(0x0A);
+    packet.push(0x0A);
     // Enable
-    read_data.push(0x01);
+    packet.push(0x01);
     // Filter duplicates
-    read_data.push(0x01);
+    packet.push(0x01);
+
+    read_data.push(packet);
 
     let mut read_data_map = HashMap::new();
-    read_data_map.insert(0, Cursor::new(read_data));
+    read_data_map.insert(0, read_data);
 
     let libc = TestLibc::new(
         is_socker_hci,

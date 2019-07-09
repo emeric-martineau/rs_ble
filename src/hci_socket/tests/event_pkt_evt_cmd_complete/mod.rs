@@ -1,10 +1,9 @@
 use libc::c_int;
 use std::collections::HashMap;
-use std::io::Cursor;
 use hci_socket::log::ConsoleLogger;
 use hci_socket::{Hci, EVT_CMD_COMPLETE, BtLeAddressType, HciState, BtLeConnectionComplete, HciCallback, HCI_EVENT_PKT, READ_LOCAL_VERSION_CMD, HCI_COMMAND_PKT, LE_SET_SCAN_ENABLE_CMD, LE_SET_SCAN_PARAMETERS_CMD, READ_BD_ADDR_CMD, READ_RSSI_CMD};
 use super::{init_device_list_request, init_hci_user};
-use hci_socket::unix_libc::tests::{TestLibc, WriteData};
+use hci_socket::unix_libc::tests::{TestLibc, WriteData, NetworkPacket};
 use std::cell::Cell;
 use bytes::{BufMut, BytesMut};
 
@@ -318,32 +317,37 @@ pub fn bind_user_hci_channel_raw_hci_event_pkt_evt_cmd_complete_read_local_versi
     let ioctl_hci_dev_info_call_error: HashMap<c_int, bool> = HashMap::new();
     let my_device_list = init_device_list_request( 1, true);
     let bind_sockaddr_hci = init_hci_user(0,1);
-    let mut read_data: Vec<u8> = Vec::new();
 
-    read_data.push(HCI_EVENT_PKT);
-    read_data.push(EVT_CMD_COMPLETE);
-    read_data.push(0x00);
-    read_data.push(0x00);
+    let mut read_data = NetworkPacket::new();
+    
+    let mut packet: Vec<u8> = Vec::new();
+
+    packet.push(HCI_EVENT_PKT);
+    packet.push(EVT_CMD_COMPLETE);
+    packet.push(0x00);
+    packet.push(0x00);
     // cmd READ_LOCAL_VERSION_CMD
-    read_data.put_u16_le(READ_LOCAL_VERSION_CMD);
+    packet.put_u16_le(READ_LOCAL_VERSION_CMD);
     // status
-    read_data.push(0x03);
+    packet.push(0x03);
     // Hci ver
-    read_data.push(0x04);
+    packet.push(0x04);
     // Hci rev
-    read_data.push(0x05);
-    read_data.push(0x06);
+    packet.push(0x05);
+    packet.push(0x06);
     // Lmp ver
-    read_data.push(0x07);
+    packet.push(0x07);
     // Manufacturer
-    read_data.push(0x08);
-    read_data.push(0x09);
+    packet.push(0x08);
+    packet.push(0x09);
     // Lmp sub ver
-    read_data.push(0x0A);
-    read_data.push(0x0B);
+    packet.push(0x0A);
+    packet.push(0x0B);
+    
+    read_data.push(packet);
 
     let mut read_data_map = HashMap::new();
-    read_data_map.insert(0, Cursor::new(read_data));
+    read_data_map.insert(0, read_data);
 
     let libc = TestLibc::new(
         is_socker_hci,
@@ -379,32 +383,37 @@ pub fn bind_user_hci_channel_raw_hci_event_pkt_evt_cmd_complete_read_local_versi
     let ioctl_hci_dev_info_call_error: HashMap<c_int, bool> = HashMap::new();
     let my_device_list = init_device_list_request( 1, true);
     let bind_sockaddr_hci = init_hci_user(0,1);
-    let mut read_data: Vec<u8> = Vec::new();
 
-    read_data.push(HCI_EVENT_PKT);
-    read_data.push(EVT_CMD_COMPLETE);
-    read_data.push(0x00);
-    read_data.push(0x00);
+    let mut read_data = NetworkPacket::new();
+    
+    let mut packet: Vec<u8> = Vec::new();
+
+    packet.push(HCI_EVENT_PKT);
+    packet.push(EVT_CMD_COMPLETE);
+    packet.push(0x00);
+    packet.push(0x00);
     // cmd READ_LOCAL_VERSION_CMD
-    read_data.put_u16_le(READ_LOCAL_VERSION_CMD);
+    packet.put_u16_le(READ_LOCAL_VERSION_CMD);
     // status
-    read_data.push(0x03);
+    packet.push(0x03);
     // Hci ver
-    read_data.push(0x06);
+    packet.push(0x06);
     // Hci rev
-    read_data.push(0x05);
-    read_data.push(0x06);
+    packet.push(0x05);
+    packet.push(0x06);
     // Lmp ver
-    read_data.push(0x07);
+    packet.push(0x07);
     // Manufacturer
-    read_data.push(0x08);
-    read_data.push(0x09);
+    packet.push(0x08);
+    packet.push(0x09);
     // Lmp sub ver
-    read_data.push(0x0A);
-    read_data.push(0x0B);
+    packet.push(0x0A);
+    packet.push(0x0B);
+
+    read_data.push(packet);
 
     let mut read_data_map = HashMap::new();
-    read_data_map.insert(0, Cursor::new(read_data));
+    read_data_map.insert(0, read_data);
 
     let libc = TestLibc::new(
         is_socker_hci,
@@ -448,26 +457,30 @@ pub fn bind_user_hci_channel_raw_hci_event_pkt_evt_cmd_complete_read_bd_addr_cmd
     let ioctl_hci_dev_info_call_error: HashMap<c_int, bool> = HashMap::new();
     let my_device_list = init_device_list_request( 1, true);
     let bind_sockaddr_hci = init_hci_user(0,1);
-    let mut read_data: Vec<u8> = Vec::new();
+    let mut read_data = NetworkPacket::new();
 
-    read_data.push(HCI_EVENT_PKT);
-    read_data.push(EVT_CMD_COMPLETE);
-    read_data.push(0x00);
-    read_data.push(0x00);
+    let mut packet: Vec<u8> = Vec::new();
+
+    packet.push(HCI_EVENT_PKT);
+    packet.push(EVT_CMD_COMPLETE);
+    packet.push(0x00);
+    packet.push(0x00);
     // cmd READ_BD_ADDR_CMD
-    read_data.put_u16_le(READ_BD_ADDR_CMD);
+    packet.put_u16_le(READ_BD_ADDR_CMD);
     // Status
-    read_data.push(0x00);
+    packet.push(0x00);
     // Mac address
-    read_data.push(0x06);
-    read_data.push(0x05);
-    read_data.push(0x04);
-    read_data.push(0x03);
-    read_data.push(0x02);
-    read_data.push(0x01);
+    packet.push(0x06);
+    packet.push(0x05);
+    packet.push(0x04);
+    packet.push(0x03);
+    packet.push(0x02);
+    packet.push(0x01);
+
+    read_data.push(packet);
 
     let mut read_data_map = HashMap::new();
-    read_data_map.insert(0, Cursor::new(read_data));
+    read_data_map.insert(0, read_data);
 
     let libc = TestLibc::new(
         is_socker_hci,
@@ -501,19 +514,23 @@ pub fn bind_user_hci_channel_raw_hci_event_pkt_evt_cmd_complete_le_set_scan_para
     let ioctl_hci_dev_info_call_error: HashMap<c_int, bool> = HashMap::new();
     let my_device_list = init_device_list_request( 1, true);
     let bind_sockaddr_hci = init_hci_user(0,1);
-    let mut read_data: Vec<u8> = Vec::new();
+    let mut read_data = NetworkPacket::new();
 
-    read_data.push(HCI_EVENT_PKT);
-    read_data.push(EVT_CMD_COMPLETE);
-    read_data.push(0x00);
-    read_data.push(0x00);
+    let mut packet: Vec<u8> = Vec::new();
+
+    packet.push(HCI_EVENT_PKT);
+    packet.push(EVT_CMD_COMPLETE);
+    packet.push(0x00);
+    packet.push(0x00);
     // cmd READ_BD_ADDR_CMD
-    read_data.put_u16_le(LE_SET_SCAN_PARAMETERS_CMD);
+    packet.put_u16_le(LE_SET_SCAN_PARAMETERS_CMD);
     // Status
-    read_data.push(0x00);
+    packet.push(0x00);
+
+    read_data.push(packet);
 
     let mut read_data_map = HashMap::new();
-    read_data_map.insert(0, Cursor::new(read_data));
+    read_data_map.insert(0, read_data);
 
     let libc = TestLibc::new(
         is_socker_hci,
@@ -547,23 +564,27 @@ pub fn bind_user_hci_channel_raw_hci_event_pkt_evt_cmd_read_rssi_cmd() {
     let ioctl_hci_dev_info_call_error: HashMap<c_int, bool> = HashMap::new();
     let my_device_list = init_device_list_request( 1, true);
     let bind_sockaddr_hci = init_hci_user(0,1);
-    let mut read_data: Vec<u8> = Vec::new();
+    let mut read_data = NetworkPacket::new();
 
-    read_data.push(HCI_EVENT_PKT);
-    read_data.push(EVT_CMD_COMPLETE);
-    read_data.push(0x00);
-    read_data.push(0x00);
+    let mut packet: Vec<u8> = Vec::new();
+
+    packet.push(HCI_EVENT_PKT);
+    packet.push(EVT_CMD_COMPLETE);
+    packet.push(0x00);
+    packet.push(0x00);
     // cmd READ_RSSI_CMD
-    read_data.put_u16_le(READ_RSSI_CMD);
+    packet.put_u16_le(READ_RSSI_CMD);
     // Status
-    read_data.push(0x00);
+    packet.push(0x00);
     // Handle
-    read_data.put_u16_le(0x0102);
+    packet.put_u16_le(0x0102);
     // Rssi
-    read_data.push(0x05);
+    packet.push(0x05);
+
+    read_data.push(packet);
 
     let mut read_data_map = HashMap::new();
-    read_data_map.insert(0, Cursor::new(read_data));
+    read_data_map.insert(0, read_data);
 
     let libc = TestLibc::new(
         is_socker_hci,

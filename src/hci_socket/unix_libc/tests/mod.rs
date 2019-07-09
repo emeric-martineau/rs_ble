@@ -1,6 +1,7 @@
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
-use std::io::{Cursor, Read};
+use std::io::Cursor;
+use std::io::Read;
 use bytes::BytesMut;
 use libc::c_int;
 use hci_socket::hci::bluetooth::hci::{
@@ -29,6 +30,31 @@ pub struct WriteData {
     pub buf: BytesMut
 }
 
+/// Structure for Network data.
+pub struct NetworkPacket {
+    data: Vec<Cursor<Vec<u8>>>
+}
+
+impl NetworkPacket {
+    pub fn new() -> NetworkPacket {
+        NetworkPacket {
+            data: Vec::new()
+        }
+    }
+
+    pub fn push(&mut self, data: Vec<u8>) {
+        self.data.push(Cursor::new(data));
+    }
+
+    pub fn pop(&mut self) -> Cursor<Vec<u8>> {
+        if self.data.len() > 0 {
+            self.data.remove(0)
+        } else {
+            Cursor::new(Vec::new())
+        }
+    }
+}
+
 pub struct TestLibc {
     /// File descriptor counter.
     fd: Cell<c_int>,
@@ -51,7 +77,7 @@ pub struct TestLibc {
     pub bind_sockaddr_hci: HashMap<c_int, sockaddr_hci>,
     /// Value return when call `read()` method. `Vec<u8>` can contain more data than `PollBuffer`.
     /// If no more data available return Error:Other("Stop test").
-    pub read_data: RefCell<HashMap<c_int, Cursor<Vec<u8>>>>,
+    pub read_data: RefCell<HashMap<c_int, NetworkPacket>>,
     /// Data of `write()` call.
     pub write_data: RefCell<Vec<WriteData>>
 }
@@ -63,7 +89,7 @@ impl TestLibc {
             ioctl_hci_dev_info_call_error: HashMap<c_int, bool>,
             hci_dev_list_req: HashMap<c_int, hci_dev_list_req>,
             bind_sockaddr_hci: HashMap<i32, sockaddr_hci>,
-            read_data: HashMap<c_int, Cursor<Vec<u8>>>) -> TestLibc {
+            read_data: HashMap<c_int, NetworkPacket>) -> TestLibc {
         TestLibc {
             fd: Cell::new(0),
             is_socker_hci,
@@ -200,7 +226,9 @@ impl Libc for TestLibc {
     fn read(&self, fd: c_int, buf: &mut PollBuffer) -> Result<c_int> {
         match self.read_data.borrow_mut().get_mut(&fd) {
             Some(item) => {
-                match item.read(buf) {
+                let mut data = item.pop();
+
+                match data.read(buf) {
                     Ok(size) => {
                         match size {
                             0 => Err(Error::Other(String::from("Stop test"))),

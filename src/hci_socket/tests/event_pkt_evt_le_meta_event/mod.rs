@@ -1,10 +1,9 @@
 use libc::c_int;
 use std::collections::HashMap;
-use std::io::Cursor;
 use hci_socket::log::ConsoleLogger;
 use hci_socket::{Hci, BtLeAddressType, HciState, BtLeConnectionComplete, HciCallback, HCI_EVENT_PKT, EVT_LE_META_EVENT, EVT_LE_CONN_COMPLETE, EVT_LE_ADVERTISING_REPORT, EVT_LE_CONN_UPDATE_COMPLETE};
 use super::{init_device_list_request, init_hci_user};
-use hci_socket::unix_libc::tests::TestLibc;
+use hci_socket::unix_libc::tests::{TestLibc, NetworkPacket};
 use std::cell::Cell;
 use bytes::BufMut;
 
@@ -91,39 +90,43 @@ pub fn bind_user_hci_channel_raw_hci_event_pkt_evt_le_meta_event_evt_le_conn_com
     let ioctl_hci_dev_info_call_error: HashMap<c_int, bool> = HashMap::new();
     let my_device_list = init_device_list_request( 1, true);
     let bind_sockaddr_hci = init_hci_user(0,1);
-    let mut read_data: Vec<u8> = Vec::new();
+    let mut read_data = NetworkPacket::new();
+    
+    let mut packet: Vec<u8> = Vec::new();
 
-    read_data.push(HCI_EVENT_PKT);
-    read_data.push(EVT_LE_META_EVENT);
+    packet.push(HCI_EVENT_PKT);
+    packet.push(EVT_LE_META_EVENT);
     // Event type
-    read_data.push(EVT_LE_CONN_COMPLETE);
+    packet.push(EVT_LE_CONN_COMPLETE);
     // Event status
-    read_data.push(0x01);
+    packet.push(0x01);
     // Data
     // Handle
-    read_data.put_u16_le(0x0203);
+    packet.put_u16_le(0x0203);
     // Role
-    read_data.push(0x04);
+    packet.push(0x04);
     // Random
-    read_data.push(0x01);
+    packet.push(0x01);
     // Mac address
-    read_data.push(0x0A);
-    read_data.push(0x09);
-    read_data.push(0x08);
-    read_data.push(0x07);
-    read_data.push(0x06);
-    read_data.push(0x05);
+    packet.push(0x0A);
+    packet.push(0x09);
+    packet.push(0x08);
+    packet.push(0x07);
+    packet.push(0x06);
+    packet.push(0x05);
     // Interval
-    read_data.put_u16_le(0x0B);
+    packet.put_u16_le(0x0B);
     // Latency
-    read_data.put_u16_le(0x0C);
+    packet.put_u16_le(0x0C);
     // Supervision timeout
-    read_data.put_u16_le(0x0D);
+    packet.put_u16_le(0x0D);
     // Master clock accuracy
-    read_data.push(0x0E);
+    packet.push(0x0E);
+
+    read_data.push(packet);
 
     let mut read_data_map = HashMap::new();
-    read_data_map.insert(0, Cursor::new(read_data));
+    read_data_map.insert(0, read_data);
 
     let libc = TestLibc::new(
         is_socker_hci,
@@ -232,55 +235,59 @@ pub fn bind_user_hci_channel_raw_hci_event_pkt_evt_le_meta_event_evt_le_advertis
     let ioctl_hci_dev_info_call_error: HashMap<c_int, bool> = HashMap::new();
     let my_device_list = init_device_list_request( 1, true);
     let bind_sockaddr_hci = init_hci_user(0,1);
-    let mut read_data: Vec<u8> = Vec::new();
+    let mut read_data = NetworkPacket::new();
+    
+    let mut packet: Vec<u8> = Vec::new();
 
-    read_data.push(HCI_EVENT_PKT);
-    read_data.push(EVT_LE_META_EVENT);
+    packet.push(HCI_EVENT_PKT);
+    packet.push(EVT_LE_META_EVENT);
     // Event type
-    read_data.push(EVT_LE_ADVERTISING_REPORT);
+    packet.push(EVT_LE_ADVERTISING_REPORT);
     // Event status = nb of Eir
-    read_data.push(0x02);
+    packet.push(0x02);
     // Data #1
     // Type
-    read_data.push(0x01);
+    packet.push(0x01);
     // Random
-    read_data.push(0x01);
+    packet.push(0x01);
     // Mac address
-    read_data.push(0x0A);
-    read_data.push(0x09);
-    read_data.push(0x08);
-    read_data.push(0x07);
-    read_data.push(0x06);
-    read_data.push(0x05);
+    packet.push(0x0A);
+    packet.push(0x09);
+    packet.push(0x08);
+    packet.push(0x07);
+    packet.push(0x06);
+    packet.push(0x05);
     // Eir length
-    read_data.push(0x02);
+    packet.push(0x02);
     // Eir Data
-    read_data.push(0x0A);
-    read_data.push(0x0B);
+    packet.push(0x0A);
+    packet.push(0x0B);
     // Rssi
-    read_data.push(0x0E);
+    packet.push(0x0E);
     // Data #2
     // Type
-    read_data.push(0x01);
+    packet.push(0x01);
     // Random
-    read_data.push(0x01);
+    packet.push(0x01);
     // Mac address
-    read_data.push(0x0A);
-    read_data.push(0x09);
-    read_data.push(0x08);
-    read_data.push(0x07);
-    read_data.push(0x06);
-    read_data.push(0x05);
+    packet.push(0x0A);
+    packet.push(0x09);
+    packet.push(0x08);
+    packet.push(0x07);
+    packet.push(0x06);
+    packet.push(0x05);
     // Eir length
-    read_data.push(0x02);
+    packet.push(0x02);
     // Eir Data
-    read_data.push(0x0A);
-    read_data.push(0x0B);
+    packet.push(0x0A);
+    packet.push(0x0B);
     // Rssi
-    read_data.push(0x0E);
+    packet.push(0x0E);
+
+    read_data.push(packet);
 
     let mut read_data_map = HashMap::new();
-    read_data_map.insert(0, Cursor::new(read_data));
+    read_data_map.insert(0, read_data);
 
     let libc = TestLibc::new(
         is_socker_hci,
@@ -386,26 +393,30 @@ pub fn bind_user_hci_channel_raw_hci_event_pkt_evt_le_meta_event_evt_le_conn_upd
     let ioctl_hci_dev_info_call_error: HashMap<c_int, bool> = HashMap::new();
     let my_device_list = init_device_list_request( 1, true);
     let bind_sockaddr_hci = init_hci_user(0,1);
-    let mut read_data: Vec<u8> = Vec::new();
+    let mut read_data = NetworkPacket::new();
+    
+    let mut packet: Vec<u8> = Vec::new();
 
-    read_data.push(HCI_EVENT_PKT);
-    read_data.push(EVT_LE_META_EVENT);
+    packet.push(HCI_EVENT_PKT);
+    packet.push(EVT_LE_META_EVENT);
     // Event type
-    read_data.push(EVT_LE_CONN_UPDATE_COMPLETE);
+    packet.push(EVT_LE_CONN_UPDATE_COMPLETE);
     // Event status
-    read_data.push(0x01);
+    packet.push(0x01);
     // Data
     // Handle
-    read_data.put_u16_le(0x0203);
+    packet.put_u16_le(0x0203);
     // Interval
-    read_data.put_u16_le(0x0B);
+    packet.put_u16_le(0x0B);
     // Latency
-    read_data.put_u16_le(0x0C);
+    packet.put_u16_le(0x0C);
     // Supervision timeout
-    read_data.put_u16_le(0x0D);
+    packet.put_u16_le(0x0D);
+
+    read_data.push(packet);
 
     let mut read_data_map = HashMap::new();
-    read_data_map.insert(0, Cursor::new(read_data));
+    read_data_map.insert(0, read_data);
 
     let libc = TestLibc::new(
         is_socker_hci,

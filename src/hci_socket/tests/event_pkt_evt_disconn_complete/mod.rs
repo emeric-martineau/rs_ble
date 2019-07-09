@@ -1,10 +1,9 @@
 use libc::c_int;
 use std::collections::HashMap;
-use std::io::Cursor;
 use hci_socket::log::ConsoleLogger;
 use hci_socket::{Hci, EVT_DISCONN_COMPLETE, BtLeAddressType, HciState, BtLeConnectionComplete, HciCallback, HCI_EVENT_PKT};
 use super::{init_device_list_request, init_hci_user};
-use hci_socket::unix_libc::tests::TestLibc;
+use hci_socket::unix_libc::tests::{TestLibc, NetworkPacket};
 use std::cell::Cell;
 
 pub struct TestHciEvtDisconnCompleteCallback {
@@ -81,20 +80,24 @@ pub fn bind_user_hci_channel_raw_hci_event_pkt_evt_disconn_complete() {
     let ioctl_hci_dev_info_call_error: HashMap<c_int, bool> = HashMap::new();
     let my_device_list = init_device_list_request( 1, true);
     let bind_sockaddr_hci = init_hci_user(0,1);
-    let mut read_data: Vec<u8> = Vec::new();
+    let mut read_data = NetworkPacket::new();
+    
+    let mut packet: Vec<u8> = Vec::new();
 
-    read_data.push(HCI_EVENT_PKT);
-    read_data.push(EVT_DISCONN_COMPLETE);
-    read_data.push(0x00);
-    read_data.push(0x00);
+    packet.push(HCI_EVENT_PKT);
+    packet.push(EVT_DISCONN_COMPLETE);
+    packet.push(0x00);
+    packet.push(0x00);
     // Handle 0x0201
-    read_data.push(0x01);
-    read_data.push(0x02);
+    packet.push(0x01);
+    packet.push(0x02);
     // Reason
-    read_data.push(0x03);
+    packet.push(0x03);
+    
+    read_data.push(packet);
 
     let mut read_data_map = HashMap::new();
-    read_data_map.insert(0, Cursor::new(read_data));
+    read_data_map.insert(0, read_data);
 
     let libc = TestLibc::new(
         is_socker_hci,
