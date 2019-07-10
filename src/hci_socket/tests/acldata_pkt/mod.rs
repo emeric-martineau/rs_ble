@@ -6,6 +6,7 @@ use super::{init_device_list_request, init_hci_user};
 use hci_socket::unix_libc::tests::{TestLibc, NetworkPacket};
 use std::cell::Cell;
 use bytes::BufMut;
+use hci_socket::error::Error;
 
 pub struct TestHciCommandPktAclStartOnePaquetCallback {
     pub is_called: Cell<bool>
@@ -266,6 +267,66 @@ pub fn bind_user_hci_channel_raw_hci_acldata_pkt_acl_start_two_paquet() {
         Ok(mut hci) => match hci.init(Some(&callback)) {
             Ok(_) => assert_eq!(true, callback.is_called.get()),
             Err(e) => panic!("Hci init() {:?}", e)
+        },
+        Err(e) =>  panic!("Hci new() {:?}", e)
+    }
+}
+
+#[test]
+pub fn bind_user_hci_channel_raw_hci_acldata_pkt_acl_start_cont_paquet_without_start() {
+    let is_socker_hci = true;
+    let is_socker_l2cap = true;
+    let ioctl_hci_dev_info_call_error: HashMap<c_int, bool> = HashMap::new();
+    let my_device_list = init_device_list_request( 1, true);
+    let bind_sockaddr_hci = init_hci_user(0,1);
+
+    let mut read_data = NetworkPacket::new();
+
+    let mut packet2: Vec<u8> = Vec::new();
+
+    let acl_cont_and_handler = ACL_CONT << 12 | 0x111;
+
+    packet2.push(HCI_ACLDATA_PKT);
+    packet2.put_u16_le(acl_cont_and_handler);
+    // Filling
+    packet2.push(0x00);
+    packet2.push(0x00);
+    // Data
+    packet2.push(0x02);
+    packet2.push(0x03);
+
+    read_data.push(packet2);
+
+    let mut read_data_map = HashMap::new();
+    read_data_map.insert(0, read_data);
+
+    let libc = TestLibc::new(
+        is_socker_hci,
+        is_socker_l2cap,
+        ioctl_hci_dev_info_call_error,
+        my_device_list,
+        bind_sockaddr_hci,
+        read_data_map);
+
+    let log = ConsoleLogger {
+        debug_level: true
+    };
+
+    let callback = TestHciCommandPktAclStartTwoPaquetCallback {
+        is_called: Cell::new(false)
+    };
+
+    match Hci::new(None, false, &log, &libc) {
+        Ok(mut hci) => match hci.init(Some(&callback)) {
+            Ok(_) => assert_eq!(false, callback.is_called.get()),
+            Err(e) => {
+                assert_eq!(false, callback.is_called.get());
+
+                match e {
+                    Error::Other(s) => assert_eq!("Stop test", s),
+                    e => panic!("Hci init() {:?}", e)
+                }
+            }
         },
         Err(e) =>  panic!("Hci new() {:?}", e)
     }
