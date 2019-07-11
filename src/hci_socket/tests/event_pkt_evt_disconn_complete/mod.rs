@@ -1,7 +1,7 @@
 use libc::c_int;
 use std::collections::HashMap;
 use hci_socket::log::ConsoleLogger;
-use hci_socket::{Hci, EVT_DISCONN_COMPLETE, BtLeAddressType, HciState, BtLeConnectionComplete, HciCallback, HCI_EVENT_PKT};
+use hci_socket::hci::{Hci, EVT_DISCONN_COMPLETE, BtLeAddressType, HciState, BtLeConnectionComplete, HciCallback, HCI_EVENT_PKT};
 use super::{init_device_list_request, init_hci_user};
 use hci_socket::unix_libc::tests::{TestLibc, NetworkPacket};
 use std::cell::Cell;

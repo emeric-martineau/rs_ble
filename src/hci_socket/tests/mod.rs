@@ -2,10 +2,9 @@ use hci_socket::unix_libc::tests::{TestLibc, NetworkPacket};
 use libc::{c_int, AF_BLUETOOTH};
 use std::collections::HashMap;
 use hci_socket::log::ConsoleLogger;
-use hci_socket::Hci;
 use hci_socket::hci::bluetooth::hci::{hci_dev_list_req, hci_dev_req, HCI_UP, HCI_MAX_DEV, sockaddr_hci, HCI_CHANNEL_RAW};
 use hci_socket::error::Error;
-use hci_socket::{BtLeAddressType, HciState, BtLeConnectionComplete, HciCallback};
+use hci_socket::hci::{Hci, BtLeAddressType, HciState, BtLeConnectionComplete, HciCallback};
 
 mod event_pkt_evt_disconn_complete;
 mod event_pkt_evt_encrypt_change;
